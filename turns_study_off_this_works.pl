@@ -83,6 +83,8 @@ header
 my $socket = IO::Socket::INET->new(Proto=>'udp', LocalPort=>$port) ||
                  die "Could not create listen socket: $!\n";
 
+autoflush $socket 1;
+
 my $msg = {
     size => 0x00,
     protocol => 0x1400,
@@ -132,6 +134,11 @@ sub tellBulb($$$$)
 {
     my ($mac, $gateway, $type, $payload) = @_;
 
+    my ($port, $iaddr) = sockaddr_in($gateway);
+    my $from_str = inet_ntoa($iaddr);
+
+print "Telling: $from_str:$port\n";
+
     $msg->{size} = 36+length($payload),
     $msg->{target_mac_address}  = $mac,
     $msg->{packet_type} = $type;
@@ -143,6 +150,8 @@ my @packet = unpack('C*', $packet);
 print "\nTELL: ";
 printPacket(@packet);
 $socket->send($packet, 0, $gateway);
+
+sleep(4);
 }
 
 
@@ -222,7 +231,7 @@ sub decodePacket($$)
 
     my $decoded->{header} = $header;
 
-    print "$from_str ".MAC2Str($mac)." ";
+    # print "$from_str ".MAC2Str($mac)." ";
 
     if ($type == 0x02) {
         print "Get PAN gateway\n";
@@ -300,7 +309,7 @@ while(1) {
         my $from = recv($fh, $packet,1024,0);
 
         my @data = unpack("C*", $packet);
-        printPacket(@data);
+        # printPacket(@data);
         my $decoded = decodePacket($from,$packet);
     }
 }
