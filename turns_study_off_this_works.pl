@@ -143,7 +143,6 @@ my @packet = unpack('C*', $packet);
 print "\nTELL: ";
 printPacket(@packet);
 $socket->send($packet, 0, $gateway);
-exit(1);
 }
 
 
@@ -263,7 +262,11 @@ sub decodePacket($$)
 
         if ($label eq 'Study') {
             my $payload = pack('S', 0);
-            tellBulb($mac, $from, $SET_POWER_STATE, $payload)
+            tellBulb($mac, $from, $SET_POWER_STATE, $payload);
+            $payload = pack('S', 0xFFFF);
+            sleep(3);
+            tellBulb($mac, $from, $SET_POWER_STATE, $payload);
+exit(0);
         }
 
         print "Light Status ".$label."\n";;
@@ -299,7 +302,6 @@ while(1) {
         my @data = unpack("C*", $packet);
         printPacket(@data);
         my $decoded = decodePacket($from,$packet);
-        #print Dumper($decoded);
     }
 }
 
