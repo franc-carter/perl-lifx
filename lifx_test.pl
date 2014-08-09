@@ -2,8 +2,12 @@
 
 use strict;
 use LIFX;
+use Data::Dumper;
 
 my $lifx = LIFX->new();
 
-$lifx->status();
+while(1) {
+    my $msg = $lifx->next_message();
+    print Dumper($msg);
+}
 
