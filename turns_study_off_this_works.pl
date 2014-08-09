@@ -130,7 +130,11 @@ sub tellAll($$)
     my $header                 = packHeader($msg);
     my $packet                 = $header.$payload;
 
+print "\nTELL ALL: ";
+printPacket($packet);
+
     $socket->send($packet, 0, $to);
+
 }
 
 sub tellBulb($$$$)
@@ -317,6 +321,10 @@ exit(0);
 sub printPacket(@)
 {
     my @packet = @_;
+
+    if ($#packet == 0) {
+        @packet = unpack('C*', $packet[0]);
+    }
 
     foreach my $h (@packet) {
         printf("%02x ", $h);
