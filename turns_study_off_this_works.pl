@@ -9,57 +9,57 @@ use IO::Select;
 
 my $port = 56700;
 
-my $GET_PAN_GATEWAY = 0X02;
-my $PAN_GATEWAY = 0X03;
-my $GET_POWER_STATE = 0X14;
-my $SET_POWER_STATE = 0X15;
-my $POWER_STATE = 0X16;
-my $GET_WIFI_INFO = 0X10;
-my $WIFI_INFO = 0X11;
-my $GET_WIFI_FIRMWARE_STATE = 0X12;
-my $WIFI_FIRMWARE_STATE = 0X13;
-my $GET_WIFI_STATE = 0X12D;
-my $SET_WIFI_STATE = 0X12E;
-my $WIFI_STATE = 0X12F;
-my $GET_ACCESS_POINTS = 0X130;
-my $SET_ACCESS_POINT = 0X131;
-my $ACCESS_POINT = 0X132;
-my $GET_BULB_LABEL = 0X17;
-my $SET_BULB_LABEL = 0X18;
-my $BULB_LABEL = 0X19;
-my $GET_TAGS = 0X1A;
-my $SET_TAGS = 0X1B;
-my $TAGS = 0X1C;
-my $GET_TAG_LABELS = 0X1D;
-my $SET_TAG_LABELS = 0X1E;
-my $TAG_LABELS = 0X1F;
-my $GET_LIGHT_STATE = 0X65;
-my $SET_LIGHT_COLOR = 0X66;
-my $SET_WAVEFORM = 0X67;
-my $SET_DIM_ABSOLUTE = 0X68;
-my $SET_DIM_RELATIVE = 0X69;
-my $LIGHT_STATUS = 0X6B;
-my $GET_TIME = 0X04;
-my $SET_TIME = 0X05;
-my $TIME_STATE = 0X06;
-my $GET_RESET_SWITCH = 0X07;
-my $RESET_SWITCH_STATE = 0X08;
-my $GET_DUMMY_LOAD = 0X09;
-my $SET_DUMMY_LOAD = 0X0A;
-my $DUMMY_LOAD = 0X0B;
-my $GET_MESH_INFO = 0X0C;
-my $MESH_INFO = 0X0D;
-my $GET_MESH_FIRMWARE = 0X0E;
-my $MESH_FIRMWARE_STATE = 0X0F;
-my $GET_VERSION = 0X20;
-my $VERSION_STATE = 0X21;
-my $GET_INFO = 0X22;
-my $INFO = 0X23;
-my $GET_MCU_RAIL_VOLTAGE = 0X24;
-my $MCU_RAIL_VOLTAGE = 0X25;
-my $REBOOT = 0X26;
-my $SET_FACTORY_TEST_MODE = 0X27;
-my $DISABLE_FACTORY_TEST_MODE = 0X28;
+my $GET_PAN_GATEWAY = 0x02;
+my $PAN_GATEWAY = 0x03;
+my $GET_POWER_STATE = 0x14;
+my $SET_POWER_STATE = 0x15;
+my $POWER_STATE = 0x16;
+my $GET_WIFI_INFO = 0x10;
+my $WIFI_INFO = 0x11;
+my $GET_WIFI_FIRMWARE_STATE = 0x12;
+my $WIFI_FIRMWARE_STATE = 0x13;
+my $GET_WIFI_STATE = 0x12D;
+my $SET_WIFI_STATE = 0x12E;
+my $WIFI_STATE = 0x12F;
+my $GET_ACCESS_POINTS = 0x130;
+my $SET_ACCESS_POINT = 0x131;
+my $ACCESS_POINT = 0x132;
+my $GET_BULB_LABEL = 0x17;
+my $SET_BULB_LABEL = 0x18;
+my $BULB_LABEL = 0x19;
+my $GET_TAGS = 0x1A;
+my $SET_TAGS = 0x1B;
+my $TAGS = 0x1C;
+my $GET_TAG_LABELS = 0x1D;
+my $SET_TAG_LABELS = 0x1E;
+my $TAG_LABELS = 0x1F;
+my $GET_LIGHT_STATE = 0x65;
+my $SET_LIGHT_COLOR = 0x66;
+my $SET_WAVEFORM = 0x67;
+my $SET_DIM_ABSOLUTE = 0x68;
+my $SET_DIM_RELATIVE = 0x69;
+my $LIGHT_STATUS = 0x6B;
+my $GET_TIME = 0x04;
+my $SET_TIME = 0x05;
+my $TIME_STATE = 0x06;
+my $GET_RESET_SWITCH = 0x07;
+my $RESET_SWITCH_STATE = 0x08;
+my $GET_DUMMY_LOAD = 0x09;
+my $SET_DUMMY_LOAD = 0x0A;
+my $DUMMY_LOAD = 0x0B;
+my $GET_MESH_INFO = 0x0C;
+my $MESH_INFO = 0x0D;
+my $GET_MESH_FIRMWARE = 0x0E;
+my $MESH_FIRMWARE_STATE = 0x0F;
+my $GET_VERSION = 0x20;
+my $VERSION_STATE = 0x21;
+my $GET_INFO = 0x22;
+my $INFO = 0x23;
+my $GET_MCU_RAIL_VOLTAGE = 0x24;
+my $MCU_RAIL_VOLTAGE = 0x25;
+my $REBOOT = 0x26;
+my $SET_FACTORY_TEST_MODE = 0x27;
+my $DISABLE_FACTORY_TEST_MODE = 0x28;
 
 # $Data::Dumper::Indent = 0;
 
@@ -270,11 +270,19 @@ sub decodePacket($$)
         $byLabel{$label} = $header;
 
         if ($label eq 'Study') {
-            my $payload = pack('S', 0);
+            my $payload;
+
+            $payload = pack('C(SSSSL)<', (0,0xaaaa,0x8888,0x00,0x00,1000));
+            tellBulb($mac, $from, $SET_LIGHT_COLOR, $payload);
+            sleep(10);
+
+            $payload = pack('S', 0);
             tellBulb($mac, $from, $SET_POWER_STATE, $payload);
+            sleep(2);
+
             $payload = pack('S', 0xFFFF);
-            sleep(3);
             tellBulb($mac, $from, $SET_POWER_STATE, $payload);
+            sleep(2);
 exit(0);
         }
 
@@ -314,162 +322,3 @@ while(1) {
     }
 }
 
-exit(0);
-
-=begin
-
-
-[root@homectl ~]# tcpdump -vv -X -i eth0 port 56700
-
-tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 65535 bytes
-20:38:56.394501 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto UDP (17), length 66)
-
-
-    192.168.2.26.49820 > 192.168.2.11.56700: [udp sum ok] UDP, length 38
-
-        0x0000:  45 00 00 42 00 00 40 00 40 11 b5 35 c0 a8 02 1a
-        0x0010:  c0 a8 02 0b c2 9c dd 7c 00 2e ff c4|26 00 00 14
-        0x0020:  00 00 00 00 d0 73 d5 01 0f e0 00 00 4c 49 46 58  .....s......LIFX
-        0x0030:  56 32 01 00 00 00 00 00 00 00 00 00 15 00 00 00  V2..............
-        0x0040:  00 00                                     ..
-
-
-26 00
-00 14
-00 00 00 00
-d0 73 d5 01 0f e0
-00 00
-4c 49 46 58 56 32
-01 00
-00 00 00 00 00 00 00 00
-15 00
-00 00
-00 00
-
-
-
-
-
-
-
-20:38:56.437201 IP (tos 0x0, ttl 255, id 35543, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.11.56700 > 192.168.2.255.56700: [udp sum ok] UDP, length 38
-        0x0000:  4500 0042 8ad7 4000 ff11 6a78 c0a8 020b  E..B..@...jx....
-        0x0010:  c0a8 02ff dd7c dd7c 002e e3bf | 2600 0054  .....|.|....&..T
-        0x0020:  0000 0000 d073 d501 0fe0 0000 4c49 4658  .....s......LIFX
-        0x0030:  5632 0000 0000 0000 0000 0000 1600 0000  V2..............
-        0x0040:  ffff                                     ..
-
-20:38:56.950795 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.26.49820 > 192.168.2.11.56700: [udp sum ok] UDP, length 38
-        0x0000:  4500 0042 0000 4000 4011 b535 c0a8 021a  E..B..@.@..5....
-        0x0010:  c0a8 020b c29c dd7c 002e ffc4  |2600 0014  .......|....&...
-        0x0020:  0000 0000 d073 d501 0fe0 0000 4c49 4658  .....s......LIFX
-        0x0030:  5632 0100 0000 0000 0000 0000 1500 0000  V2..............
-        0x0040:  0000                                     ..
-
-20:38:56.987200 IP (tos 0x0, ttl 255, id 35544, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.11.56700 > 192.168.2.255.56700: [udp sum ok] UDP, length 38
-        0x0000:  4500 0042 8ad8 4000 ff11 6a77 c0a8 020b  E..B..@...jw....
-        0x0010:  c0a8 02ff dd7c dd7c 002e e3bf  |2600 0054  .....|.|....&..T
-        0x0020:  0000 0000 d073 d501 0fe0 0000 4c49 4658  .....s......LIFX
-        0x0030:  5632 0000 0000 0000 0000 0000 1600 0000  V2..............
-        0x0040:  0000                                     ..
-
-20:38:57.941879 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.26.49820 > 192.168.2.11.56700: [udp sum ok] UDP, length 38
-        0x0000:  4500 0042 0000 4000 4011 b535 c0a8 021a  E..B..@.@..5....
-        0x0010:  c0a8 020b c29c dd7c 002e fec4  |2600 0014  .......|....&...
-        0x0020:  0000 0000 d073 d501 0fe0 0000 4c49 4658  .....s......LIFX
-        0x0030:  5632 0100 0000 0000 0000 0000 1500 0000  V2..............
-        0x0040:  0100                                     ..
-
-20:38:57.987217 IP (tos 0x0, ttl 255, id 35545, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.11.56700 > 192.168.2.255.56700: [udp sum ok] UDP, length 38
-        0x0000:  4500 0042 8ad9 4000 ff11 6a76 c0a8 020b  E..B..@...jv....
-        0x0010:  c0a8 02ff dd7c dd7c 002e e3bf  |2600 0054  .....|.|....&..T
-        0x0020:  0000 0000 d073 d501 0fe0 0000 4c49 4658  .....s......LIFX
-        0x0030:  5632 0000 0000 0000 0000 0000 1600 0000  V2..............
-        0x0040:  0000                                     ..
-
-20:38:58.497540 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.26.49820 > 192.168.2.11.56700: [udp sum ok] UDP, length 38
-        0x0000:  4500 0042 0000 4000 4011 b535 c0a8 021a  E..B..@.@..5....
-        0x0010:  c0a8 020b c29c dd7c 002e fec4  |
-
-
-26 00
-00 14
-00 00 00 00
-d0 73 d5 01 0f e0
-00 00
-4c 49 46 58 56 32
-01 00
-00 00 00 00 00 00 00 00
-15 00
-00 00
-01 00
-
-20:38:58.537179 IP (tos 0x0, ttl 255, id 35546, offset 0, flags [DF], proto UDP (17), length 66)
-    192.168.2.11.56700 > 192.168.2.255.56700: [udp sum ok] UDP, length 38
-
-
-26 00
-00 54
-00 00 00 00
-d0 73 d5 01 0f e0
-00 00
-4c 49 46 58 56 32
-00 00
-00 00 00 00 00 00 00 00
-16 00
-00 00
-ff ff
-
-20:39:03.184943 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto UDP (17), length 64)
-    192.168.2.26.36608 > 255.255.255.255.56700: [udp sum ok] UDP, length 36
-
-2400 0034
-0000 0000 0000 0000 0000 0000 0000 0000
-0000 0000 0000 0000 0000 0000 0200 0000
-
-20:39:03.239477 IP (tos 0x0, ttl 255, id 35547, offset 0, flags [DF], proto UDP (17), length 69)
-    192.168.2.11.56700 > 192.168.2.255.56700: [udp sum ok] UDP, length 41
-
-29 00
-00 54
-00 00 00 00
-d0 73 d5 01 96 13
-00 00
-4c 49 46 58 56 32
-00 00
-00 00 00 00 00 00 00 00
-03 00
-00 00
-02 00 00 00 00
-
-
-
-20:39:03.242145 IP (tos 0x0, ttl 255, id 35548, offset 0, flags [DF], proto UDP (17), length 69)
-    192.168.2.11.56700 > 192.168.2.255.56700: [udp sum ok] UDP, length 41
-
-29 00
-00 54
-00 00 00 00
-d0 73 d5 01 96 13
-00 00
-4c 49 46 58 56 32
-00 00 00 00 00 00 00 00 00 00 03 00 00 00
-01 7c dd 00 00 
-
-
-
-
-
-
-
-
-
-
-
-=cut
