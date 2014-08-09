@@ -118,17 +118,20 @@ sub packHeader($)
     my $packed = pack('SSLa6Sa6SQvS', @header);
 }
 
-# 26 00
-# 00 54
-# 00 00 00 00
-# d0 73 d5 01 0f e0
-# 00 00
-# 4c 49 46 58 56 32
-# 00 00
-# 00 00 00 00 00 00 00 00
-# 15 00
-# 00 00
-# 00 00
+sub tellAll($$)
+{
+    my ($type, $payload) = @_;
+
+    my $bcast                  = inet_aton("255.255.255.255");
+    my $to                     = sockaddr_in($port, $bcast);
+    $msg->{size}               = 36+length($payload),
+    $msg->{target_mac_address} = pack('C6', (0,0,0,0,0,0));
+    $msg->{packet_type}        = $type;
+    my $header                 = packHeader($msg);
+    my $packet                 = $header.$payload;
+
+    $socket->send($packet, 0, $to);
+}
 
 sub tellBulb($$$$)
 {
@@ -139,18 +142,16 @@ sub tellBulb($$$$)
 
 print "Telling: $from_str:$port\n";
 
-    $msg->{size} = 36+length($payload),
-    $msg->{target_mac_address}  = $mac,
-    $msg->{packet_type} = $type;
+    $msg->{size}               = 36+length($payload),
+    $msg->{target_mac_address} = $mac,
+    $msg->{packet_type}        = $type;
+    my $header                 = packHeader($msg);
+    my $packet                 = $header.$payload;
 
-    my $header = packHeader($msg);
-    my $packet = $header.$payload;
+    $socket->send($packet, 0, $gateway);
 
-my @packet = unpack('C*', $packet);
 print "\nTELL: ";
-printPacket(@packet);
-$socket->send($packet, 0, $gateway);
-
+printPacket($packet);
 sleep(4);
 }
 
@@ -323,20 +324,18 @@ sub printPacket(@)
     print "\n";
 }
 
-
-
 my $select = IO::Select->new($socket);
 
+tellAll($GET_PAN_GATEWAY, "");
+
 print "Listening\n";
-my $subscribed = 0;
-my $packet;
 while(1) {
     my @ready = $select->can_read(0);
     foreach my $fh (@ready) {
-        my $from = recv($fh, $packet,1024,0);
+        my $packet;
 
-        my @data = unpack("C*", $packet);
-        # printPacket(@data);
+        my $from    = recv($fh, $packet,1024,0);
+        my @data    = unpack("C*", $packet);
         my $decoded = decodePacket($from,$packet);
     }
 }
