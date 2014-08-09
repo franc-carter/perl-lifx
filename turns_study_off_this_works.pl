@@ -272,9 +272,28 @@ sub decodePacket($$)
         if ($label eq 'Study') {
             my $payload;
 
-            $payload = pack('C(SSSSL)<', (0,0xaaaa,0x8888,0x00,0x00,1000));
+
+#payload {
+#  byte stream;        // Unknown, potential "streaming" mode toggle? Set to
+#                      // 0x00 for now.
+#  uint16 hue;         // LE NOTE: Wraps around at 0xff 0xff back to 0x00 0x00
+#                      // which is a primary red colour.
+#  uint16 saturation;  // LE
+#  uint16 brightness;  // LE
+#  uint16 kelvin;      // LE i.e. colour temperature (whites wheel in apps)
+#  uint32 fade_time;   // LE Length of fade action, in seconds
+#}
+
+my $kel = 2700;
+while ($kel < 6500) {
+print "k=$kel\n";
+            $payload = pack('C(SSSSL)<', (0,0x0,0x0,0x8000,$kel,0));
             tellBulb($mac, $from, $SET_LIGHT_COLOR, $payload);
-            sleep(10);
+            sleep(1);
+$kel += 100;
+
+}
+exit(0);
 
             $payload = pack('S', 0);
             tellBulb($mac, $from, $SET_POWER_STATE, $payload);
