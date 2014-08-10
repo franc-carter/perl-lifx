@@ -12,7 +12,7 @@ while(1) {
     if (defined($study)) {
         my $hsbk = [0,0,5,2500];
         #$study->set_colour($hsbk,1000);
-        #$study->set_power(1);
+        $study->set_power(0);
     }
 }
 

@@ -276,7 +276,7 @@ sub next_message($)
     elsif ($type == $TIME_STATE) {
     }
     elsif ($type == $POWER_STATE) {
-        $bulb->{status}->{power} = $decoded->{power}
+        $bulb->{status}->{power} = $msg->{power}
     }
     elsif ($type == $TAG_LABELS) {
     }
@@ -304,8 +304,8 @@ sub get_all_bulbs($)
     my $bulbs = {};
     my $byMAC = $self->{bulbs}->{byMAC};
     foreach my $mac (keys %{$byMAC}) {
-        my $bulb     = $byMAC->{$mac};
-        $bulbs{$mac} = LIFX::Bulb->new($self,$bulb);
+        my $bulb       = $byMAC->{$mac};
+        $bulbs->{$mac} = LIFX::Bulb->new($self,$bulb);
     }
     return $bulbs;
 }
