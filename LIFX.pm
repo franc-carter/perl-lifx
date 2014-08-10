@@ -80,7 +80,7 @@ sub decode_header($)
 {
     my ($header) = @_;
 
-    my @header = unpack('SSLa6Sa6SQSS', $header);
+    my @header = unpack('(SS)<La6Sa6SQSS', $header);
     $header = {
         size               => $header[0],
         protocol           => $header[1],
@@ -96,6 +96,67 @@ sub decode_header($)
     return $header;
 }
 
+sub decode_light_status($)
+{
+    my ($payload) = @_;
+
+    my @decoded = unpack('(SSSSS)<SA32Q',$payload);
+    my $status = {
+        "hue"        => $decoded[0],
+        "saturation" => $decoded[1],
+        "brightness" => $decoded[2],
+        "kelvin"     => $decoded[3],
+        "dim"        => $decoded[4],
+        "power"      => $decoded[5],
+        "label"      => $decoded[6],
+        "tags"       => $decoded[7],
+    };
+    $status->{label} =~ s/\s+$//;
+
+    return $status;
+}
+
+sub decode_packet($)
+{
+    my ($packet) = @_;
+
+    my $decoded        = {};
+    $decoded->{header} = decode_header($packet);
+    my $type           = $decoded->{header}->{packet_type};
+    my $payload        = substr($packet, 36);
+
+    if ($type == $GET_PAN_GATEWAY) {
+        $decoded->{packet_type} = $GET_PAN_GATEWAY;
+    }
+    elsif ($type == $PAN_GATEWAY) {
+        my ($service,$port) = unpack('aL', $payload);
+        $decoded->{packet_type}    = $PAN_GATEWAY;
+        $decoded->{service} = $service;
+        $decoded->{port}    = $port;
+    }
+    elsif ($type == $TIME_STATE) {
+        $decoded->{packet_type} = $TIME_STATE;
+        $decoded->{time} = unpack('Q', $payload);
+    }
+    elsif ($type == $POWER_STATE) {
+        $decoded->{packet_type}  = $POWER_STATE;
+        $decoded->{power} = unpack('S', $payload);
+    }
+    elsif ($type == $TAG_LABELS) {
+        $decoded->{packet_type}   = $TAG_LABELS;
+        my ($tags, $label) = unpack('Qa*', $payload);
+        $decoded->{tags}   = $tags;
+        $decoded->{label}  = $label;
+    }
+    elsif ($type == $LIGHT_STATUS) {
+        $decoded->{status} = decode_light_status($payload);
+    }
+    else {
+        printf("Unknown(%x)\n", $type);
+    }
+    return $decoded;
+}
+
 sub next_message($)
 {
     my ($self) = @_;
@@ -106,53 +167,11 @@ sub next_message($)
     my $select = IO::Select->new($self->{socket});
     my @ready  = $select->can_read();
     my $from   = recv($ready[0], $packet, 1024, 0);
+    my $msg    =  decode_packet($packet);
 
-    $message->{header} = decode_header($packet);
-
-    return $message;
+    return $msg;
 }
 
-sub decodePacket($)
-{
-    my ($packet) = @_;
-
-    my @header = unpack('SSLa6Sa6SQSS', $packet);
-
-    my $header = getHeader($packet);
-    my $type   = $header->{packet_type};
-    my $mac    = $header->{target_mac_address};
-
-    my $decoded->{header} = $header;
-
-    if ($type == $GET_PAN_GATEWAY) {
-        $decoded->{type} = $GET_PAN_GATEWAY;
-    }
-    elsif ($type == $PAN_GATEWAY) {
-        $decoded->{type} = $PAN_GATEWAY;
-        my ($service,$port) = unpack('aL', substr($packet,36));
-    }
-    elsif ($type == $TIME_STATE) {
-        $decoded->{type} = $TIME_STATE;
-        my $time = unpack('Q', substr($packet,36,8));
-    }
-    elsif ($type == $POWER_STATE) {
-        $decoded->{type} = $POWER_STATE;
-        my $power = unpack('S', substr($packet,36,2));
-    }
-    elsif ($type == $TAG_LABELS) {
-        $decoded->{type} = $TAG_LABELS;
-        my ($tags, $label) = unpack('Qa*', substr($packet,36));
-    }
-    elsif ($type == $LIGHT_STATUS) {
-        $decoded->{type} = $LIGHT_STATUS;
-        my $status = getLightStatus(substr($packet,36));
-        my $label  = $status->{label};
-    }
-    else {
-        printf("Unknown(%x)\n", $header[8]);
-    }
-    return $decoded;
-}
 
 1;
 
