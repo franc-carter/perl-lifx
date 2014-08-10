@@ -4,6 +4,10 @@ use strict;
 use warnings;
 use IO::Socket;
 use IO::Select;
+use Data::Dumper;
+
+require 'LIFX/Bulb.pm';
+
 my $port = 56700;
 
 my $GET_PAN_GATEWAY = 0x02;
@@ -58,27 +62,109 @@ my $REBOOT = 0x26;
 my $SET_FACTORY_TEST_MODE = 0x27;
 my $DISABLE_FACTORY_TEST_MODE = 0x28;
 
+sub printPacket(@)
+{
+    my @packet = @_;
+
+    if ($#packet == 0) {
+        @packet = unpack('C*', $packet[0]);
+    }
+
+    foreach my $h (@packet) {
+        printf("%02x ", $h);
+    }
+    print "\n";
+}
+
 sub new($)
 {
-    my ($class)     = @_;
+    my ($class) = @_;
 
-    my $self        = {};
-    $self->{bulbs}  = {};
-    $self->{port}   = $port;
-    $self->{socket} = IO::Socket::INET->new(
-                          Proto=>'udp',
-                          LocalPort=>$port
-                      );
+    my $self           = {};
+    $self->{bulbs}     = {};
+    $self->{gateways}  = {};
+    $self->{port}      = $port;
+    $self->{socket}    = IO::Socket::INET->new(
+                             Proto => 'udp',
+                             LocalPort => $port,
+                             Broadcast => 1,
+                         );
 
     defined($self->{socket}) || die "Could not create listen socket: $!\n";
     autoflush {$self->{socket}} 1;
 
-    return bless $self, $class;
+    my $obj = bless $self, $class;
+
+    $obj->tellAll($GET_PAN_GATEWAY, "");
+
+    return $obj;
 }
 
-sub decode_header($)
+sub packHeader($$)
 {
-    my ($header) = @_;
+    my ($self, $header) = @_;
+
+    my @header = (
+        $header->{size},
+        $header->{protocol},
+        $header->{reserved1},
+        $header->{target_mac_address},
+        $header->{reserved2},
+        $header->{site},
+        $header->{reserved3},
+        $header->{timestamp},
+        $header->{packet_type},
+        $header->{reserved4},
+    );
+    my $packed = pack('(SS)<La6Sa6SQvS', @header);
+}
+
+sub tellBulb($$$$$)
+{
+    my ($self, $gw, $mac, $type, $payload) = @_;
+
+    my $msg = {
+        size        => 0x00, protocol           => 0x1400,
+        reserved1   => 0x00, target_mac_address => $mac,
+        reserved2   => 0x00, site               => "LIFXV2",
+        reserved3   => 0x00, timestamp          => 0x00,
+        packet_type => 0x00, reserved4          => 0x00,
+    };
+
+    $msg->{size}        = 36+length($payload),
+    $msg->{packet_type} = $type;
+    my $header          = $self->packHeader($msg);
+    my $packet          = $header.$payload;
+
+    $self->{socket}->send($packet, 0, $gw) || die "Uggh: $!";
+}
+
+sub tellAll($$$)
+{
+    my ($self, $type, $payload) = @_;
+
+    my $msg = {
+        size        => 0x00, protocol           => 0x3400,
+        reserved1   => 0x00, target_mac_address => 0x000000,
+        reserved2   => 0x00, site               => "\0\0\0\0\0\0",
+        reserved3   => 0x00, timestamp          => 0x00,
+        packet_type => 0x00, reserved4          => 0x00,
+    };
+
+    my $bcast                  = inet_aton("255.255.255.255");
+    my $to                     = sockaddr_in($self->{port}, $bcast);
+    $msg->{size}               = 36+length($payload),
+    $msg->{target_mac_address} = pack('C6', (0,0,0,0,0,0));
+    $msg->{packet_type}        = $type;
+    my $header                 = $self->packHeader($msg);
+    my $packet                 = $header.$payload;
+
+    $self->{socket}->send($packet, 0, $to) || die "Uggh: $!";
+}
+
+sub decode_header($$)
+{
+    my ($self,$header) = @_;
 
     my @header = unpack('(SS)<La6Sa6SQSS', $header);
     $header = {
@@ -96,9 +182,9 @@ sub decode_header($)
     return $header;
 }
 
-sub decode_light_status($)
+sub decode_light_status($$)
 {
-    my ($payload) = @_;
+    my ($self,$payload) = @_;
 
     my @decoded = unpack('(SSSSS)<SA32Q',$payload);
     my $status = {
@@ -116,12 +202,12 @@ sub decode_light_status($)
     return $status;
 }
 
-sub decode_packet($)
+sub decode_packet($$)
 {
-    my ($packet) = @_;
+    my ($self,$packet) = @_;
 
     my $decoded        = {};
-    $decoded->{header} = decode_header($packet);
+    $decoded->{header} = $self->decode_header($packet);
     my $type           = $decoded->{header}->{packet_type};
     my $payload        = substr($packet, 36);
 
@@ -149,7 +235,8 @@ sub decode_packet($)
         $decoded->{label}  = $label;
     }
     elsif ($type == $LIGHT_STATUS) {
-        $decoded->{status} = decode_light_status($payload);
+        $decoded->{packet_type}   = $LIGHT_STATUS;
+        $decoded->{status} = $self->decode_light_status($payload);
     }
     else {
         printf("Unknown(%x)\n", $type);
@@ -167,11 +254,109 @@ sub next_message($)
     my $select = IO::Select->new($self->{socket});
     my @ready  = $select->can_read();
     my $from   = recv($ready[0], $packet, 1024, 0);
-    my $msg    =  decode_packet($packet);
+    my $msg    = $self->decode_packet($packet);
 
+    my $mac  = $msg->{header}->{target_mac_address};
+    my $bulb = $self->{bulbs}->{byMAC}->{$mac} || {};
+    my $type = $msg->{packet_type};
+
+    $bulb->{addr} = $from;
+    if ($type == $LIGHT_STATUS) {
+        my $label = $msg->{status}->{label};
+        $bulb->{status}                     = $msg->{status};
+        $bulb->{mac}                        = $mac;
+        $self->{bulbs}->{byMAC}->{$mac}     = $bulb;
+        $self->{bulbs}->{byLabel}->{$label} = $bulb;
+    }
+    elsif ($type == $PAN_GATEWAY) {
+        $self->{gateways}->{$mac} = $bulb;
+    }
+    elsif ($type == $GET_PAN_GATEWAY) {
+    }
+    elsif ($type == $TIME_STATE) {
+    }
+    elsif ($type == $POWER_STATE) {
+        $bulb->{status}->{power} = $decoded->{power}
+    }
+    elsif ($type == $TAG_LABELS) {
+    }
+    else {
+        die $type;
+    }
     return $msg;
 }
 
+sub get_bulb_by_label($$)
+{
+    my ($self,$label) = @_;
+
+    my $bulb = $self->{bulbs}->{byLabel}->{$label};
+
+    defined($bulb) || return undef;
+
+    return LIFX::Bulb->new($self,$bulb);
+}
+
+sub get_all_bulbs($)
+{
+    my ($self) = @_;
+
+    my $bulbs = {};
+    my $byMAC = $self->{bulbs}->{byMAC};
+    foreach my $mac (keys %{$byMAC}) {
+        my $bulb     = $byMAC->{$mac};
+        $bulbs{$mac} = LIFX::Bulb->new($self,$bulb);
+    }
+    return $bulbs;
+}
+
+sub get_colour($$$$)
+{
+    my ($self, $bulb) = @_;
+
+    my @hsbk;
+    $hsbk[0] = $bulb->{bulb}->{status}->{hue};
+    $hsbk[1] = $bulb->{bulb}->{status}->{saturation};
+    $hsbk[2] = $bulb->{bulb}->{status}->{brighntess};
+    $hsbk[3] = $bulb->{bulb}->{status}->{kelvin};
+
+    return @hsbk;
+}
+
+sub set_colour($$$$)
+{
+    my ($self, $bulb, $hsbk, $t) = @_;
+
+    $hsbk->[1]  = int($hsbk->[1] / 100.0 * 65535.0);
+    $hsbk->[2]  = int($hsbk->[2] / 100.0 * 65535.0);
+    my @payload = (0x0,$hsbk->[0],$hsbk->[1],$hsbk->[2],$hsbk->[3],$t);
+
+    my $mac     = $bulb->{bulb}->{mac};
+    my $payload = pack('C(SSSSL)<', @payload);
+    for my $gw (keys %{$self->{gateways}}) {
+        my $gw_addr = $self->{gateways}->{$gw}->{addr};
+        $self->tellBulb($gw_addr, $mac, $SET_LIGHT_COLOR, $payload);
+    }
+}
+
+sub get_power($$)
+{
+    my ($self, $bulb) = @_;
+
+    return ($bulb->{bulb}->{status}->{power} == 0xFFFF);
+}
+
+sub set_power($$$)
+{
+    my ($self, $bulb, $power) = @_;
+
+    my $mac     = $bulb->{bulb}->{mac};
+    my $payload = pack('S<', $power);
+    for my $gw (keys %{$self->{gateways}}) {
+        my $gw_addr = $self->{gateways}->{$gw}->{addr};
+        $self->tellBulb($gw_addr, $mac, $SET_POWER_STATE, $payload);
+    }
+}
 
 1;
 
