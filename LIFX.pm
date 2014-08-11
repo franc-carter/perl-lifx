@@ -58,6 +58,13 @@ sub new($)
     return $obj;
 }
 
+sub packet_type_str($$)
+{
+    my ($self,$type) = @_;
+
+    return LIFX::Constants::type2str($type);
+}
+
 sub find_gateways($)
 {
     my ($self) = @_;
@@ -191,6 +198,8 @@ sub decode_packet($$)
     }
     elsif ($type == GET_LIGHT_STATE) {
     }
+    elsif ($type == MESH_FIRMWARE_STATE) {
+    }
     else {
         printf("Unknown(%x)\n", $type);
     }
@@ -244,6 +253,8 @@ sub get_message($$)
         $bulb->{status}->{power} = $msg->{power}
     }
     elsif ($type == TAG_LABELS) {
+    }
+    elsif ($type == MESH_FIRMWARE_STATE) {
     }
     else {
         die $type;
