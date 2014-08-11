@@ -49,11 +49,39 @@ sub set_colour($$$)
     $self->{hub}->set_colour($self, $hsbk, $t);
 }
 
-sub set_power($$)
+sub power($$)
 {
     my ($self, $power) = @_;
 
-    $self->{hub}->set_power($self, $power);
+    if (defined($power)) {
+        $self->{hub}->set_power($self, $power);
+    } else {
+        return $self->{bulb}->{status}->{power};
+    }
+}
+
+sub off($)
+{
+    my ($self) = @_;
+
+    $self->power(0);
+}
+
+sub on($)
+{
+    my ($self) = @_;
+    $self->power(1);
+}
+
+sub label($$)
+{
+    my ($self,$label) = @_;
+
+    if (defined($label)) {
+       # set label
+    } else {
+        return $self->{bulb}->{status}->{label};
+    }
 }
 
 1;

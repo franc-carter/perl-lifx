@@ -11,7 +11,6 @@ while(1) {
     my @bulbs = $lifx->get_all_bulbs("Study");
     foreach my $b (@bulbs) {
         $b->prettyPrint();
-        print "\n";
     }
 }
 
