@@ -320,7 +320,7 @@ sub get_colour($$$$)
     my @hsbk;
     $hsbk[0] = $bulb->{bulb}->{status}->{hue};
     $hsbk[1] = $bulb->{bulb}->{status}->{saturation};
-    $hsbk[2] = $bulb->{bulb}->{status}->{brighntess};
+    $hsbk[2] = $bulb->{bulb}->{status}->{brightness};
     $hsbk[3] = $bulb->{bulb}->{status}->{kelvin};
 
     return @hsbk;
