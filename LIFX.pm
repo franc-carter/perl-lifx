@@ -197,18 +197,25 @@ sub decode_packet($$)
     return $decoded;
 }
 
-sub next_message($)
+sub has_message($$)
+{
+    my ($self,$timeout) = @_;
+
+    my $select = IO::Select->new($self->{socket});
+    my @ready  = $select->can_read($timeout);
+
+    return ($#ready >= 0);
+}
+
+sub get_message($$)
 {
     my ($self) = @_;
 
     my $message;
     my $packet;
 
-    my $select = IO::Select->new($self->{socket});
-    my @ready  = $select->can_read();
-    my $from   = recv($ready[0], $packet, 1024, 0);
-    my $msg    = $self->decode_packet($packet);
-
+    my $from = recv($self->{socket}, $packet, 1024, 0);
+    my $msg  = $self->decode_packet($packet);
     my $mac  = $msg->{header}->{target_mac_address};
     my $bulb = $self->{bulbs}->{byMAC}->{$mac} || {};
     my $type = $msg->{header}->{packet_type};
@@ -242,6 +249,16 @@ sub next_message($)
         die $type;
     }
     return $msg;
+}
+
+sub next_message($$)
+{
+    my ($self, $timeout) = @_;
+
+    if ($self->has_message($timeout)) {
+        return $self->get_message();
+    }
+    return undef;
 }
 
 sub get_bulb_by_mac($$)
