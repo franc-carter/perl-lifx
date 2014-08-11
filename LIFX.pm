@@ -191,6 +191,7 @@ sub decode_packet($$)
         my ($tags, $label) = unpack('Qa*', $payload);
         $decoded->{tags}   = $tags;
         $decoded->{label}  = $label;
+print "$tags $label\n";
     }
     elsif ($type == LIGHT_STATUS) {
         $decoded->{packet_type}   = LIGHT_STATUS;
