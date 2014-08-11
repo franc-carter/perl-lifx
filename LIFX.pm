@@ -10,11 +10,16 @@ require 'LIFX/Bulb.pm';
 
 my $port = 56700;
 
+# Mesh network 
 my $GET_PAN_GATEWAY = 0x02;
 my $PAN_GATEWAY = 0x03;
+
+# On/Off
 my $GET_POWER_STATE = 0x14;
 my $SET_POWER_STATE = 0x15;
 my $POWER_STATE = 0x16;
+
+# WiFi handling
 my $GET_WIFI_INFO = 0x10;
 my $WIFI_INFO = 0x11;
 my $GET_WIFI_FIRMWARE_STATE = 0x12;
@@ -25,6 +30,8 @@ my $WIFI_STATE = 0x12F;
 my $GET_ACCESS_POINTS = 0x130;
 my $SET_ACCESS_POINT = 0x131;
 my $ACCESS_POINT = 0x132;
+
+# Labels and Tags
 my $GET_BULB_LABEL = 0x17;
 my $SET_BULB_LABEL = 0x18;
 my $BULB_LABEL = 0x19;
@@ -34,15 +41,21 @@ my $TAGS = 0x1C;
 my $GET_TAG_LABELS = 0x1D;
 my $SET_TAG_LABELS = 0x1E;
 my $TAG_LABELS = 0x1F;
+
+# Colour, Brightness etc
 my $GET_LIGHT_STATE = 0x65;
 my $SET_LIGHT_COLOR = 0x66;
 my $SET_WAVEFORM = 0x67;
 my $SET_DIM_ABSOLUTE = 0x68;
 my $SET_DIM_RELATIVE = 0x69;
 my $LIGHT_STATUS = 0x6B;
+
+# Time
 my $GET_TIME = 0x04;
 my $SET_TIME = 0x05;
 my $TIME_STATE = 0x06;
+
+# Debugging and Management
 my $GET_RESET_SWITCH = 0x07;
 my $RESET_SWITCH_STATE = 0x08;
 my $GET_DUMMY_LOAD = 0x09;
@@ -61,6 +74,10 @@ my $MCU_RAIL_VOLTAGE = 0x25;
 my $REBOOT = 0x26;
 my $SET_FACTORY_TEST_MODE = 0x27;
 my $DISABLE_FACTORY_TEST_MODE = 0x28;
+
+my $AllBulbsResponse = 0x5400;
+my $AllBulbsRequest  = 0x3400;
+my $BulbCommand      = 0x1400;
 
 sub printPacket(@)
 {
@@ -124,7 +141,7 @@ sub tellBulb($$$$$)
     my ($self, $gw, $mac, $type, $payload) = @_;
 
     my $msg = {
-        size        => 0x00, protocol           => 0x1400,
+        size        => 0x00, protocol           => $BulbCommand,
         reserved1   => 0x00, target_mac_address => $mac,
         reserved2   => 0x00, site               => "LIFXV2",
         reserved3   => 0x00, timestamp          => 0x00,
@@ -144,7 +161,7 @@ sub tellAll($$$)
     my ($self, $type, $payload) = @_;
 
     my $msg = {
-        size        => 0x00, protocol           => 0x3400,
+        size        => 0x00, protocol           => $AllBulbsRequest,
         reserved1   => 0x00, target_mac_address => 0x000000,
         reserved2   => 0x00, site               => "\0\0\0\0\0\0",
         reserved3   => 0x00, timestamp          => 0x00,
@@ -189,11 +206,11 @@ sub decode_light_status($$)
     my @decoded = unpack('(SSSSS)<SA32Q',$payload);
     my $status = {
         "hue"        => $decoded[0],
-        "saturation" => $decoded[1],
-        "brightness" => $decoded[2],
+        "saturation" => $decoded[1]/65535.0*100.0,
+        "brightness" => $decoded[2]/65535.0*100.0,
         "kelvin"     => $decoded[3],
         "dim"        => $decoded[4],
-        "power"      => $decoded[5],
+        "power"      => ($decoded[5] == 0xFFFF),
         "label"      => $decoded[6],
         "tags"       => $decoded[7],
     };
@@ -286,6 +303,23 @@ sub next_message($)
     return $msg;
 }
 
+sub get_bulb_by_mac($$)
+{
+    my ($self,$mac) = @_;
+
+    my $bulb = undef;
+    if (length($mac) == 6) {
+        $bulb = $self->{bulbs}->{byMAC}->{$mac};
+    } elsif (length($mac) == 17) {
+        my @mac = split(':', $mac);
+        $mac    = pack('C6', @mac);
+        $bulb   = $self->{bulbs}->{byMAC}->{$mac};
+    }
+    defined($bulb) || return undef;
+
+    return LIFX::Bulb->new($self,$bulb);
+}
+
 sub get_bulb_by_label($$)
 {
     my ($self,$label) = @_;
@@ -301,13 +335,12 @@ sub get_all_bulbs($)
 {
     my ($self) = @_;
 
-    my $bulbs = {};
+    my @bulbs;
     my $byMAC = $self->{bulbs}->{byMAC};
     foreach my $mac (keys %{$byMAC}) {
-        my $bulb       = $byMAC->{$mac};
-        $bulbs->{$mac} = LIFX::Bulb->new($self,$bulb);
+        push(@bulbs, LIFX::Bulb->new($self,$byMAC->{$mac}));
     }
-    return $bulbs;
+    return @bulbs;
 }
 
 sub get_colour($$$$)
@@ -343,7 +376,7 @@ sub get_power($$)
 {
     my ($self, $bulb) = @_;
 
-    return ($bulb->{bulb}->{status}->{power} == 0xFFFF);
+    return $bulb->{bulb}->{status}->{power};
 }
 
 sub set_power($$$)
