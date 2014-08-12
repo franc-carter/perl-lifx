@@ -1,5 +1,5 @@
  
-package LIFX::Constants;
+package Device::LIFX::Constants;
 
 use strict;
 use warnings;

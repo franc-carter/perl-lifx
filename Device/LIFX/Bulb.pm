@@ -1,5 +1,5 @@
 
-package LIFX::Bulb;
+package Device::LIFX::Bulb;
 
 use strict;
 use warnings;

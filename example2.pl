@@ -22,9 +22,9 @@ print "Going to 2500K at 5% brightness over 5 seconds\n";
 $bulb->colour(\@night,5);
 sleep(6);
 
-my @night = (0,0,100,6500);
+my @day = (0,0,100,6500);
 print "Going to 6500K at 100% brightness over 10 seconds\n";
-$bulb->colour(\@night,10);
+$bulb->colour(\@day,10);
 sleep(11);
 
 print "Restoring bulb to the original state\n";

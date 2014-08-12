@@ -1,4 +1,4 @@
-package LIFX;
+package Device::LIFX;
 
 use strict;
 use warnings;
@@ -7,8 +7,7 @@ use IO::Select;
 use Data::Dumper;
 
 use Device::LIFX::Constants qw(/.*/);
-
-require 'Device/LIFX/Bulb.pm';
+use Device::LIFX::Bulb;
 
 my $port = 56700;
 
@@ -62,7 +61,7 @@ sub packet_type_str($$)
 {
     my ($self,$type) = @_;
 
-    return LIFX::Constants::type2str($type);
+    return Device::LIFX::Constants::type2str($type);
 }
 
 sub find_gateways($)
@@ -287,7 +286,7 @@ sub get_bulb_by_mac($$)
     }
     defined($bulb) || return undef;
 
-    return LIFX::Bulb->new($self,$bulb);
+    return Device::LIFX::Bulb->new($self,$bulb);
 }
 
 sub get_bulb_by_label($$)
@@ -298,7 +297,7 @@ sub get_bulb_by_label($$)
 
     defined($bulb) || return undef;
 
-    return LIFX::Bulb->new($self,$bulb);
+    return Device::LIFX::Bulb->new($self,$bulb);
 }
 
 sub get_all_bulbs($)
@@ -308,7 +307,7 @@ sub get_all_bulbs($)
     my @bulbs;
     my $byMAC = $self->{bulbs}->{byMAC};
     foreach my $mac (keys %{$byMAC}) {
-        push(@bulbs, LIFX::Bulb->new($self,$byMAC->{$mac}));
+        push(@bulbs, Device::LIFX::Bulb->new($self,$byMAC->{$mac}));
     }
     return @bulbs;
 }
