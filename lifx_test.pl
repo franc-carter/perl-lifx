@@ -10,6 +10,7 @@ my $lifx = Device::LIFX->new();
 while(1) {
     my $msg   = $lifx->next_message(1);
     if (defined($msg)) {
+print Dumper($msg);
         my $mac  = $msg->{header}->{target_mac_address};
         my $type = $msg->{header}->{packet_type};
         my $bulb = $lifx->get_bulb_by_mac($mac);
