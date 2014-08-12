@@ -1,11 +1,11 @@
 #!/usr/bin/perl -w
 
 use strict;
-use LIFX;
-use LIFX::Constants;
+use Device::LIFX;
+use Device::LIFX::Constants;
 use Data::Dumper;
 
-my $lifx = LIFX->new();
+my $lifx = Device::LIFX->new();
 
 ($#ARGV == 0) || die "Usage: $0 <label>";
 

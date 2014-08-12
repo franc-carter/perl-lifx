@@ -1,11 +1,11 @@
 #!/usr/bin/perl -w
 
 use strict;
-use LIFX;
-use LIFX::Constants;
+use Device::LIFX;
+use Device::LIFX::Constants;
 use Data::Dumper;
 
-my $lifx = LIFX->new();
+my $lifx = Device::LIFX->new();
 
 while(1) {
     my $msg   = $lifx->next_message(1);
@@ -16,7 +16,7 @@ while(1) {
         if (defined($bulb)) {
             print $bulb->label(),": ";
         }
-        print LIFX::Constants::type2str($type),"\n";
+        print Device::LIFX::Constants::type2str($type),"\n";
     } else {
         print "Timeout\n";
     }
