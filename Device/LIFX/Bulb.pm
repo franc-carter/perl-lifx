@@ -18,30 +18,6 @@ sub new($$)
     return bless $self, $class;
 }
 
-sub prettyPrint($)
-{
-    my ($self) = @_;
-
-    my $status = $self->{bulb}->{status};
-    my $hue    = $status->{hue};
-    my $sat    = $status->{saturation};
-    my $bri    = $status->{brightness};
-    my $kel    = $status->{kelvin};
-    my $pow    = $status->{power};
-    my $label  = $status->{label};
-    my $mac    = $self->{bulb}->{mac};
-    my @mac    = unpack('C6', $mac);
-    @mac       = map {sprintf("%02x",$_)} @mac;
-    $mac       = join(":", @mac);
-
-    print "$label($mac):\n";
-    printf("  Hue:        %d\n", $hue);
-    printf("  Saturation: %0.1f\n", $sat);
-    printf("  Brightness: %0.1f\n", $bri);
-    printf("  Kelvin:     %d\n", $kel);
-    printf("  Power:      %d\n", $pow);
-}
-
 sub color($$$)
 {
     my ($self, $hsbk, $t) = @_;
@@ -52,6 +28,18 @@ sub color($$$)
         return $self->{bulb}->{color};
     }
 }
+
+sub rgb($$$)
+{
+    my ($self, $rgb, $t) = @_;
+
+    if (defined($rgb)) {
+        $self->{hub}->set_rgb($self, $rgb, $t);
+    } else {
+        return $self->{bulb}->{color};
+    }
+}
+
 
 sub power($$)
 {
@@ -84,7 +72,7 @@ sub label($$)
     if (defined($label)) {
        # set label
     } else {
-        return $self->{bulb}->{status}->{label};
+        return $self->{bulb}->{label};
     }
 }
 

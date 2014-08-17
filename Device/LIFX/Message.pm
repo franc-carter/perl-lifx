@@ -99,7 +99,7 @@ sub _pack_message($$$$)
     my @header = (
         36+length($payload),
         $scope,
-        0x0,
+        0x01,
         $mac,
         0x0,
         "LIFXV2",

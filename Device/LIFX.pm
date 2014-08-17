@@ -5,7 +5,7 @@ use warnings;
 use IO::Socket;
 use IO::Select;
 use Data::Dumper;
-
+use List::Util;
 use Device::LIFX::Constants qw(/.*/);
 use Device::LIFX::Bulb;
 use Device::LIFX::Message;
@@ -98,6 +98,7 @@ sub get_message($$)
         $bulb->{color}                      = $msg->color();
         $bulb->{power}                      = $msg->power();
         $bulb->{mac}                        = $msg->bulb_mac();
+        $bulb->{label}                      = $label;
         $self->{bulbs}->{byMAC}->{$mac}     = $bulb;
         $self->{bulbs}->{byLabel}->{$label} = $bulb;
     }
@@ -184,6 +185,44 @@ sub set_color($$$$)
         my @payload = (0,@{$hsbk}, $t);
         $self->tellBulb($gw_addr, $mac, SET_LIGHT_COLOR, \@payload);
     }
+}
+
+sub set_rgb($$$$)
+{
+    my ($self,$bulb,$rgb,$t) = @_;
+
+    my ($red,$green,$blue) = @{$rgb};
+    my ($hue,$sat,$bri)    = (0,0,0);
+
+    my $min   = List::Util::min($red,$green,$blue);
+    my $max   = List::Util::max($red,$green,$blue);
+    my $range = $max-$min;
+
+    if ($max != 0) {
+        $sat = ($max-$min)/$max;
+    }
+    my ($rc,$gc,$bc);
+    if ($sat != 0) {
+        $rc = ($max-$red)/$range;
+        $gc = ($max-$green)/$range;
+        $bc = ($max-$blue)/$range;
+    }
+    if ($red == $max) {
+        $hue = 0.166667*($bc-$gc);
+    } elsif ($green == $max) {
+        $hue = 0.166667*(2.0+$rc-$bc);
+    } else {
+        $hue = 0.166667*(4.0+$gc-$rc);
+    }
+
+    if ($hue < 0.0) {
+       $hue += 1.0;
+    }
+    $hue = int($hue * 65535);
+    $sat = int($sat * 100);
+    $bri = int($max/255.0*100);
+
+    $self->set_color($bulb,[$hue,$sat,$bri,0],$t);
 }
 
 sub set_power($$$)
