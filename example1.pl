@@ -7,13 +7,26 @@ use Data::Dumper;
 
 my $lifx = Device::LIFX->new();
 
-($#ARGV == 0) || die "Usage: $0 <label>";
+($#ARGV == 0) || die "Usage: $0 <label>|XX:XX:XX:XX:XX:XX";
+
+my $mac = undef;
+my @mac = split(':', $ARGV[0]);
+
+if ($#mac == 5) {
+    my @mac = map {hex($_)} @mac;
+    $mac = pack('C*', @mac);
+}
 
 my $bulb = undef;
 while(!defined($bulb)) {
     my $msg = $lifx->next_message(1);
-    $bulb   = $lifx->get_bulb_by_label($ARGV[0]);
+    if (defined($mac)) {
+        $bulb = $lifx->get_bulb_by_mac($mac);
+    } else {
+        $bulb = $lifx->get_bulb_by_label($ARGV[0]);
+    }
 }
+
 my $on = $bulb->power();
 if ($on) {
     print "Turning bulb off with power()\n";
@@ -31,35 +44,4 @@ sleep(2);
 
 print "Turning bulb on with on()\n";
 $bulb->on();
-
-=begin
-
-Bad:
-26 00
-00 14
-00 00 00 00
-30 00 00 00 00 00
-00 00
-4c 49 46 58 56 32
-00 00
-00 00 00 00 00 00 00 00
-15 00
-00 00
-01 00
-
-Good:
-26 00
-00 14
-00 00 00 00
-d0 73 d5 01 0f e0
-00 00
-4c 49 46 58 56 32
-01 00
-00 00 00 00 00 00 00 00
-15 00
-00 00
-01 00
-
-
-=cut
 

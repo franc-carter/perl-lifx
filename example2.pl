@@ -7,12 +7,23 @@ use Data::Dumper;
 
 my $lifx = Device::LIFX->new();
 
-($#ARGV == 0) || die "Usage: $0 <label>";
+($#ARGV == 0) || die "Usage: $0 <label>|XX:XX:XX:XX:XX:XX";
+
+my $mac = undef;
+my @mac = split(':', $ARGV[0]);
+if ($#mac == 5) {
+    my @mac = map {hex($_)} @mac;
+    $mac = pack('C*', @mac);
+}
 
 my $bulb = undef;
 while(!defined($bulb)) {
     my $msg = $lifx->next_message(1);
-    $bulb   = $lifx->get_bulb_by_label($ARGV[0]);
+    if (defined($mac)) {
+        $bulb = $lifx->get_bulb_by_mac($mac);
+    } else {
+        $bulb = $lifx->get_bulb_by_label($ARGV[0]);
+    }
 }
 
 my $now = $bulb->color();
