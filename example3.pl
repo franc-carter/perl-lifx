@@ -15,23 +15,23 @@ while(!defined($bulb)) {
     $bulb   = $lifx->get_bulb_by_label($ARGV[0]);
 }
 
-my @now = $bulb->colour();
+my $now = $bulb->color();
 
 my @blue = (45000,100,40,0);
 print "Going to Blue over 5 seconds\n";
-$bulb->colour(\@blue,5);
+$bulb->color(\@blue,5);
 sleep(10);
 
 my @red = (0,100,50,0);
 print "Going to Red over 5 seconds\n";
-$bulb->colour(\@red,5);
+$bulb->color(\@red,5);
 sleep(10);
 
 my @green = (25000,100,50,0);
 print "Going to Green over 5 seconds\n";
-$bulb->colour(\@green,5);
+$bulb->color(\@green,5);
 sleep(10);
 
 print "restoring\n";
-$bulb->colour(\@now,1);
+$bulb->color($now,1);
 

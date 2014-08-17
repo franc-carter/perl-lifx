@@ -8,30 +8,9 @@ use Data::Dumper;
 
 use Device::LIFX::Constants qw(/.*/);
 use Device::LIFX::Bulb;
+use Device::LIFX::Message;
 
 my $port = 56700;
-
-my %msg_template = (
-    size        => 0x00, protocol           => 0x00,
-    reserved1   => 0x00, target_mac_address => "\0\0\0\0\0\0",
-    reserved2   => 0x00, site               => "LIFXV2",
-    reserved3   => 0x00, timestamp          => 0x00,
-    packet_type => 0x00, reserved4          => 0x00,
-);
-
-sub printPacket(@)
-{
-    my @packet = @_;
-
-    if ($#packet == 0) {
-        @packet = unpack('C*', $packet[0]);
-    }
-
-    foreach my $h (@packet) {
-        printf("%02x ", $h);
-    }
-    print "\n";
-}
 
 sub new($)
 {
@@ -57,11 +36,32 @@ sub new($)
     return $obj;
 }
 
-sub packet_type_str($$)
+sub tellBulb($$$$$)
 {
-    my ($self,$type) = @_;
+    my ($self, $gw, $mac, $type, $payload) = @_;
 
-    return Device::LIFX::Constants::type2str($type);
+    my $msg = Device::LIFX::Message->new(
+                  $type,
+                  BULB_COMMAND,
+                  $mac,
+                  $payload,
+              );
+    $self->{socket}->send($msg->{packet}, 0, $gw) || die "Uggh: $!";
+}
+
+sub tellAll($$$)
+{
+    my ($self, $type, $payload) = @_;
+
+    my $msg = Device::LIFX::Message->new(
+                  $type,
+                  ALL_BULBS_REQUEST,
+                  "\0\0\0\0\0\0",
+                  $payload,
+              );
+    my $to = sockaddr_in($self->{port}, INADDR_BROADCAST);
+
+    $self->{socket}->send($msg->{packet}, 0, $to) || die "Uggh: $!";
 }
 
 sub find_gateways($)
@@ -69,141 +69,6 @@ sub find_gateways($)
     my ($self) = @_;
     
     $self->tellAll(GET_PAN_GATEWAY, "");
-}
-
-sub packMessage($$$)
-{
-    my ($self, $header, $payload) = @_;
-
-    $header->{size} = 36+length($payload),
-    my @header = (
-        $header->{size},
-        $header->{protocol},
-        $header->{reserved1},
-        $header->{target_mac_address},
-        $header->{reserved2},
-        $header->{site},
-        $header->{reserved3},
-        $header->{timestamp},
-        $header->{packet_type},
-        $header->{reserved4},
-    );
-    my $packed = pack('(SS)<La6Sa6SQvS', @header);
-
-    return $packed.$payload;
-}
-
-sub tellBulb($$$$$)
-{
-    my ($self, $gw, $mac, $type, $payload) = @_;
-
-    my %msg                  = %msg_template;
-    $msg{protocol}           = BULB_COMMAND;
-    $msg{target_mac_address} = $mac;
-    $msg{packet_type}        = $type;
-    my $packet               = $self->packMessage(\%msg,$payload);
-
-    $self->{socket}->send($packet, 0, $gw) || die "Uggh: $!";
-}
-
-sub tellAll($$$)
-{
-    my ($self, $type, $payload) = @_;
-
-    my %msg                  = %msg_template;
-    $msg{protocol}           = ALL_BULBS_REQUEST;
-    $msg{packet_type}        = $type;
-    my $packet               = $self->packMessage(\%msg,$payload);
-    my $to                   = sockaddr_in($self->{port}, INADDR_BROADCAST);
-
-    $self->{socket}->send($packet, 0, $to) || die "Uggh: $!";
-}
-
-sub decode_header($$)
-{
-    my ($self,$header) = @_;
-
-    my @header = unpack('(SS)<La6Sa6SQSS', $header);
-    $header = {
-        size               => $header[0],
-        protocol           => $header[1],
-        reserved1          => $header[2],
-        target_mac_address => $header[3],
-        reserved2          => $header[4],
-        site               => $header[5],
-        reserved3          => $header[6],
-        timestamp          => $header[7],
-        packet_type        => $header[8],
-        reserved4          => $header[9],
-    };
-    return $header;
-}
-
-sub decode_light_status($$)
-{
-    my ($self,$payload) = @_;
-
-    my @decoded = unpack('(SSSSS)<SA32Q',$payload);
-    my $status = {
-        "hue"        => $decoded[0],
-        "saturation" => $decoded[1]/65535.0*100.0,
-        "brightness" => $decoded[2]/65535.0*100.0,
-        "kelvin"     => $decoded[3],
-        "dim"        => $decoded[4],
-        "power"      => ($decoded[5] == 0xFFFF),
-        "label"      => $decoded[6],
-        "tags"       => $decoded[7],
-    };
-    $status->{label} =~ s/\s+$//;
-
-    return $status;
-}
-
-sub decode_packet($$)
-{
-    my ($self,$packet) = @_;
-
-    my $decoded        = {};
-    $decoded->{header} = $self->decode_header($packet);
-    my $type           = $decoded->{header}->{packet_type};
-    my $payload        = substr($packet, 36);
-
-    if ($type == GET_PAN_GATEWAY) {
-        $decoded->{packet_type} = GET_PAN_GATEWAY;
-    }
-    elsif ($type == PAN_GATEWAY) {
-        my ($service,$port) = unpack('aL', $payload);
-        $decoded->{packet_type} = PAN_GATEWAY;
-        $decoded->{service} = $service;
-        $decoded->{port}    = $port;
-    }
-    elsif ($type == TIME_STATE) {
-        $decoded->{packet_type} = TIME_STATE;
-        $decoded->{time} = unpack('Q', $payload);
-    }
-    elsif ($type == POWER_STATE) {
-        $decoded->{packet_type} = POWER_STATE;
-        $decoded->{power} = unpack('S', $payload);
-    }
-    elsif ($type == TAG_LABELS) {
-        $decoded->{packet_type}   = TAG_LABELS;
-        my ($tags, $label) = unpack('Qa*', $payload);
-        $decoded->{tags}   = $tags;
-        $decoded->{label}  = $label;
-print "$tags $label\n";
-    }
-    elsif ($type == LIGHT_STATUS) {
-        $decoded->{packet_type}   = LIGHT_STATUS;
-        $decoded->{status} = $self->decode_light_status($payload);
-    }
-    elsif ($type == GET_LIGHT_STATE) {
-    }
-    elsif ($type == MESH_FIRMWARE_STATE) {
-    }
-    else {
-        printf("Unknown(%x)\n", $type);
-    }
-    return $decoded;
 }
 
 sub has_message($$)
@@ -224,40 +89,28 @@ sub get_message($$)
     my $packet;
 
     my $from = recv($self->{socket}, $packet, 1024, 0);
-    my $msg  = $self->decode_packet($packet);
-    my $mac  = $msg->{header}->{target_mac_address};
-    my $bulb = $self->{bulbs}->{byMAC}->{$mac} || {};
-    my $type = $msg->{header}->{packet_type};
+    my $msg  = Device::LIFX::Message->new($from,$packet);
+    my $mac  = $msg->bulb_mac();
+    my $bulb = $self->get_bulb_by_mac($mac) || {};
 
-    $bulb->{addr} = $from;
-    if ($type == LIGHT_STATUS) {
-        my $label = $msg->{status}->{label};
-        $bulb->{status}                     = $msg->{status};
-        $bulb->{mac}                        = $mac;
+    if ($msg->type() == LIGHT_STATUS) {
+        my $label                           = $msg->label();
+        $bulb->{color}                      = $msg->color();
+        $bulb->{power}                      = $msg->power();
+        $bulb->{mac}                        = $msg->bulb_mac();
         $self->{bulbs}->{byMAC}->{$mac}     = $bulb;
         $self->{bulbs}->{byLabel}->{$label} = $bulb;
     }
-    elsif ($type == PAN_GATEWAY) {
+    elsif ($msg->type() == PAN_GATEWAY) {
         $self->{gateways}->{$mac} = $bulb;
         # This is probably not correct, it spams the whole
         # network instead of the gateway globe
         $self->tellAll(GET_LIGHT_STATE, "");
     }
-    elsif ($type == GET_PAN_GATEWAY) {
+    elsif ($msg->type() == TIME_STATE) {
     }
-    elsif ($type == TIME_STATE) {
-    }
-    elsif ($type == GET_LIGHT_STATE) {
-    }
-    elsif ($type == POWER_STATE) {
+    elsif ($msg->type() == POWER_STATE) {
         $bulb->{status}->{power} = $msg->{power}
-    }
-    elsif ($type == TAG_LABELS) {
-    }
-    elsif ($type == MESH_FIRMWARE_STATE) {
-    }
-    else {
-        die $type;
     }
     return $msg;
 }
@@ -275,6 +128,10 @@ sub next_message($$)
 sub get_bulb_by_mac($$)
 {
     my ($self,$mac) = @_;
+
+    if (!defined($mac)) {
+        return undef;
+    }
 
     my $bulb = undef;
     if (length($mac) == 6) {
@@ -312,20 +169,7 @@ sub get_all_bulbs($)
     return @bulbs;
 }
 
-sub get_colour($$$$)
-{
-    my ($self, $bulb) = @_;
-
-    my @hsbk;
-    $hsbk[0] = $bulb->{bulb}->{status}->{hue};
-    $hsbk[1] = $bulb->{bulb}->{status}->{saturation};
-    $hsbk[2] = $bulb->{bulb}->{status}->{brightness};
-    $hsbk[3] = $bulb->{bulb}->{status}->{kelvin};
-
-    return @hsbk;
-}
-
-sub set_colour($$$$)
+sub set_color($$$$)
 {
     my ($self, $bulb, $hsbk, $t) = @_;
 
@@ -335,29 +179,21 @@ sub set_colour($$$$)
     my @payload = (0x0,$hsbk->[0],$hsbk->[1],$hsbk->[2],$hsbk->[3],$t);
 
     my $mac     = $bulb->{bulb}->{mac};
-    my $payload = pack('C(SSSSL)<', @payload);
     for my $gw (keys %{$self->{gateways}}) {
         my $gw_addr = $self->{gateways}->{$gw}->{addr};
-        $self->tellBulb($gw_addr, $mac, SET_LIGHT_COLOR, $payload);
+        my @payload = (0,@{$hsbk}, $t);
+        $self->tellBulb($gw_addr, $mac, SET_LIGHT_COLOR, \@payload);
     }
-}
-
-sub get_power($$)
-{
-    my ($self, $bulb) = @_;
-
-    return $bulb->{bulb}->{status}->{power};
 }
 
 sub set_power($$$)
 {
     my ($self, $bulb, $power) = @_;
 
-    my $mac     = $bulb->{bulb}->{mac};
-    my $payload = pack('S<', $power);
+    my $mac = $bulb->{bulb}->{mac};
     for my $gw (keys %{$self->{gateways}}) {
         my $gw_addr = $self->{gateways}->{$gw}->{addr};
-        $self->tellBulb($gw_addr, $mac, SET_POWER_STATE, $payload);
+        $self->tellBulb($gw_addr, $mac, SET_POWER_STATE, $power);
     }
 }
 

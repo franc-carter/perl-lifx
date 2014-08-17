@@ -42,14 +42,14 @@ sub prettyPrint($)
     printf("  Power:      %d\n", $pow);
 }
 
-sub colour($$$)
+sub color($$$)
 {
     my ($self, $hsbk, $t) = @_;
 
     if (defined($hsbk)) {
-        $self->{hub}->set_colour($self, $hsbk, $t);
+        $self->{hub}->set_color($self, $hsbk, $t);
     } else {
-        return $self->{hub}->get_colour($self);
+        return $self->{bulb}->{color};
     }
 }
 
@@ -60,7 +60,7 @@ sub power($$)
     if (defined($power)) {
         $self->{hub}->set_power($self, $power);
     } else {
-        return $self->{bulb}->{status}->{power};
+        return $self->{bulb}->{power};
     }
 }
 
