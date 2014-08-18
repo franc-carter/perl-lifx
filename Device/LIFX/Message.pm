@@ -73,6 +73,13 @@ sub _decode_packet($)
     elsif ($type == TIME_STATE) {
         $decoded->{time} = unpack('Q', $payload);
     }
+    elsif ($type == WIFI_INFO) {
+        my @payload = unpack('(fLLs)<', $payload);
+        $decoded->{signal}          = $payload[0];
+        $decoded->{tx}              = $payload[1];
+        $decoded->{rx}              = $payload[2];
+        $decoded->{mcu_temperature} = $payload[3];
+    }
     elsif ($type == POWER_STATE) {
         $decoded->{power} = unpack('S', $payload);
     }
@@ -129,6 +136,8 @@ sub new($$)
     } else {
         my ($type,$scope,$mac,$data) = @_;
         if ($type == GET_PAN_GATEWAY) {
+            $self->{packet} = _pack_message($type, $scope, $mac, "");
+        } elsif ($type == GET_WIFI_INFO) {
             $self->{packet} = _pack_message($type, $scope, $mac, "");
         } elsif ($type == SET_POWER_STATE) {
             my $payload     = pack('S<', $data);
@@ -199,6 +208,33 @@ sub bulb_mac($)
     my ($self) = @_;
 
     return $self->{decoded}->{header}->{target_mac_address};
+}
+
+sub signal($)
+{
+    my ($self) = @_;
+
+    return $self->{decoded}->{signal};
+}
+sub tx($)
+{
+    my ($self) = @_;
+
+    return $self->{decoded}->{tx};
+}
+
+sub rx($)
+{
+    my ($self) = @_;
+
+    return $self->{decoded}->{rx};
+}
+
+sub mcu_temperature($)
+{
+    my ($self) = @_;
+
+    return $self->{decoded}->{mcu_temperature};
 }
 
 sub from_ip($)

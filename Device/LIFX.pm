@@ -64,13 +64,6 @@ sub tellAll($$$)
     $self->{socket}->send($msg->{packet}, 0, $to) || die "Uggh: $!";
 }
 
-sub find_gateways($)
-{
-    my ($self) = @_;
-    
-    $self->tellAll(GET_PAN_GATEWAY, "");
-}
-
 sub has_message($$)
 {
     my ($self,$timeout) = @_;
@@ -170,6 +163,25 @@ sub get_all_bulbs($)
     return @bulbs;
 }
 
+sub find_gateways($)
+{
+    my ($self) = @_;
+    
+    $self->tellAll(GET_PAN_GATEWAY, "");
+}
+
+sub request_wifi_info($$)
+{
+    my ($self,$bulb) = @_;
+
+    my $mac = $bulb->{bulb}->{mac};
+
+    for my $gw (keys %{$self->{gateways}}) {
+        my $gw_addr = $self->{gateways}->{$gw}->{addr};
+        $self->tellBulb($gw_addr, $mac, GET_WIFI_INFO, "");
+    }
+}
+
 sub set_color($$$$)
 {
     my ($self, $bulb, $hsbk, $t) = @_;
@@ -178,8 +190,8 @@ sub set_color($$$$)
     $hsbk->[1]  = int($hsbk->[1] / 100.0 * 65535.0);
     $hsbk->[2]  = int($hsbk->[2] / 100.0 * 65535.0);
     my @payload = (0x0,$hsbk->[0],$hsbk->[1],$hsbk->[2],$hsbk->[3],$t);
-
     my $mac     = $bulb->{bulb}->{mac};
+
     for my $gw (keys %{$self->{gateways}}) {
         my $gw_addr = $self->{gateways}->{$gw}->{addr};
         my @payload = (0,@{$hsbk}, $t);

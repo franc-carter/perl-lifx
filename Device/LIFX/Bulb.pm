@@ -40,7 +40,6 @@ sub rgb($$$)
     }
 }
 
-
 sub power($$)
 {
     my ($self, $power) = @_;
@@ -50,6 +49,13 @@ sub power($$)
     } else {
         return $self->{bulb}->{power};
     }
+}
+
+sub request_wifi_info($)
+{
+    my ($self) = @_;
+
+    $self->{hub}->request_wifi_info($self);
 }
 
 sub off($)
