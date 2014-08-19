@@ -13,11 +13,7 @@ while(1) {
     if (defined($msg)) {
         print $msg->type_as_string(),": ";
         my $mac = $msg->bulb_mac();
-        if (defined($mac)) {
-            $bulb = $lifx->get_bulb_by_mac($mac);
-        } else {
-            $bulb = $lifx->get_bulb_by_label($ARGV[0]);
-        }
+        $bulb = $lifx->get_bulb_by_mac($mac);
         if (defined($bulb)) {
             print $bulb->label(),"\n";
         } else {

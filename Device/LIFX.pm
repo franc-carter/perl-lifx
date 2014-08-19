@@ -84,14 +84,13 @@ sub get_message($$)
     my $from = recv($self->{socket}, $packet, 1024, 0);
     my $msg  = Device::LIFX::Message->new($from,$packet);
     my $mac  = $msg->bulb_mac();
-    my $bulb = $self->get_bulb_by_mac($mac) || {};
+    my $bulb = $self->get_bulb_by_mac($mac) || Device::LIFX::Bulb->new($self,$mac);
 
     if ($msg->type() == LIGHT_STATUS) {
-        my $label                           = $msg->label();
-        $bulb->{color}                      = $msg->color();
-        $bulb->{power}                      = $msg->power();
-        $bulb->{mac}                        = $msg->bulb_mac();
-        $bulb->{label}                      = $label;
+        my $label = $msg->label();
+        $bulb->_set_color($msg->color());
+        $bulb->_set_power($msg->power());
+        $bulb->_set_label($label);
         $self->{bulbs}->{byMAC}->{$mac}     = $bulb;
         $self->{bulbs}->{byLabel}->{$label} = $bulb;
     }
@@ -104,7 +103,7 @@ sub get_message($$)
     elsif ($msg->type() == TIME_STATE) {
     }
     elsif ($msg->type() == POWER_STATE) {
-        $bulb->{status}->{power} = $msg->{power}
+        $bulb->_set_power($msg->power());
     }
     return $msg;
 }
@@ -135,20 +134,14 @@ sub get_bulb_by_mac($$)
         $mac    = pack('C6', @mac);
         $bulb   = $self->{bulbs}->{byMAC}->{$mac};
     }
-    defined($bulb) || return undef;
-
-    return Device::LIFX::Bulb->new($self,$bulb);
+    return $bulb;
 }
 
 sub get_bulb_by_label($$)
 {
     my ($self,$label) = @_;
 
-    my $bulb = $self->{bulbs}->{byLabel}->{$label};
-
-    defined($bulb) || return undef;
-
-    return Device::LIFX::Bulb->new($self,$bulb);
+    return $self->{bulbs}->{byLabel}->{$label};
 }
 
 sub get_all_bulbs($)
@@ -174,7 +167,7 @@ sub request_wifi_info($$)
 {
     my ($self,$bulb) = @_;
 
-    my $mac = $bulb->{bulb}->{mac};
+    my $mac = $bulb->mac();
 
     for my $gw (keys %{$self->{gateways}}) {
         my $gw_addr = $self->{gateways}->{$gw}->{addr};
@@ -190,7 +183,7 @@ sub set_color($$$$)
     $hsbk->[1]  = int($hsbk->[1] / 100.0 * 65535.0);
     $hsbk->[2]  = int($hsbk->[2] / 100.0 * 65535.0);
     my @payload = (0x0,$hsbk->[0],$hsbk->[1],$hsbk->[2],$hsbk->[3],$t);
-    my $mac     = $bulb->{bulb}->{mac};
+    my $mac     = $bulb->mac();
 
     for my $gw (keys %{$self->{gateways}}) {
         my $gw_addr = $self->{gateways}->{$gw}->{addr};
@@ -241,7 +234,7 @@ sub set_power($$$)
 {
     my ($self, $bulb, $power) = @_;
 
-    my $mac = $bulb->{bulb}->{mac};
+    my $mac = $bulb->mac();
     for my $gw (keys %{$self->{gateways}}) {
         my $gw_addr = $self->{gateways}->{$gw}->{addr};
         $self->tellBulb($gw_addr, $mac, SET_POWER_STATE, $power);

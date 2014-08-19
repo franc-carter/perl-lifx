@@ -9,13 +9,27 @@ use Data::Dumper;
 
 sub new($$)
 {
-    my ($class,$hub,$bulb) = @_;
+    my ($class,$hub,$mac) = @_;
 
-    my $self      = {};
-    $self->{hub}  = $hub;
-    $self->{bulb} = $bulb;
+    my $self     = {};
+    $self->{hub} = $hub;
+    $self->{mac} = $mac;
 
     return bless $self, $class;
+}
+
+sub mac($)
+{
+    my ($self) = @_;
+
+    return $self->{mac};
+}
+
+sub _set_color($$)
+{
+    my ($self, $hsbk) = @_;
+
+    $self->{color} = $hsbk;
 }
 
 sub color($$$)
@@ -25,7 +39,7 @@ sub color($$$)
     if (defined($hsbk)) {
         $self->{hub}->set_color($self, $hsbk, $t);
     } else {
-        return $self->{bulb}->{color};
+        return $self->{color};
     }
 }
 
@@ -36,8 +50,15 @@ sub rgb($$$)
     if (defined($rgb)) {
         $self->{hub}->set_rgb($self, $rgb, $t);
     } else {
-        return $self->{bulb}->{color};
+        return $self->{color};
     }
+}
+
+sub _set_power($$)
+{
+    my ($self,$power) = @_;
+
+    $self->{power} = $power;
 }
 
 sub power($$)
@@ -47,7 +68,7 @@ sub power($$)
     if (defined($power)) {
         $self->{hub}->set_power($self, $power);
     } else {
-        return $self->{bulb}->{power};
+        return $self->{power};
     }
 }
 
@@ -71,6 +92,13 @@ sub on($)
     $self->power(1);
 }
 
+sub _set_label($$)
+{
+    my ($self,$label) = @_;
+
+    $self->{label} = $label;
+}
+
 sub label($$)
 {
     my ($self,$label) = @_;
@@ -78,7 +106,7 @@ sub label($$)
     if (defined($label)) {
        # set label
     } else {
-        return $self->{bulb}->{label};
+        return $self->{label};
     }
 }
 
