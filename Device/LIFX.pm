@@ -86,6 +86,7 @@ sub get_message($$)
     my $mac  = $msg->bulb_mac();
     my $bulb = $self->get_bulb_by_mac($mac) || Device::LIFX::Bulb->new($self,$mac);
 
+    $bulb->_set_last_seen(time());
     if ($msg->type() == LIGHT_STATUS) {
         my $label = $msg->label();
         $bulb->_set_color($msg->color());

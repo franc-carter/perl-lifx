@@ -3,6 +3,7 @@
 use strict;
 use Device::LIFX;
 use Device::LIFX::Constants;
+use POSIX qw(strftime);
 use Data::Dumper;
 
 my $lifx = Device::LIFX->new();
@@ -16,6 +17,8 @@ while(1) {
         $bulb = $lifx->get_bulb_by_mac($mac);
         if (defined($bulb)) {
             print $bulb->label(),"\n";
+            my $t = localtime($bulb->last_seen());
+            print " Last Seen: ",$t,"\n";
         } else {
             print "No Bulb ?\n";
         }

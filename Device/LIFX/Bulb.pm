@@ -110,6 +110,20 @@ sub label($$)
     }
 }
 
+sub _set_last_seen($$)
+{
+    my ($self,$t) = @_;
+
+    $self->{last_seen} = $t;
+}
+
+sub last_seen($)
+{
+    my ($self) = @_;
+
+    return $self->{last_seen};
+}
+
 1;
 
 
