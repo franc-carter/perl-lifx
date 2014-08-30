@@ -16,6 +16,16 @@ my %msg_template = (
     packet_type => 0x00, reserved4          => 0x00,
 );
 
+sub _mac2str($)
+{
+    my ($mac) = @_;
+
+    my @bytes = unpack('C*', $mac);
+    @bytes    = map {sprintf("%02x",$_)} @bytes;
+
+    return join(":",@bytes);
+}
+
 sub _decode_header($)
 {
     my ($packet) = @_;
@@ -32,6 +42,8 @@ sub _decode_header($)
         timestamp          => $header[7],
         packet_type        => $header[8],
         reserved4          => $header[9],
+        mac_as_str         => _mac2str($header[3]),
+        type_as_str        => type2str($header[8]),
     };
     return $header;
 }
@@ -83,10 +95,15 @@ sub _decode_packet($)
     elsif ($type == POWER_STATE) {
         $decoded->{power} = unpack('S', $payload);
     }
+    elsif ($type == TAGS) {
+        my ($tags)       = unpack('Q', $payload);
+        $decoded->{tags} = $tags;
+    }
     elsif ($type == TAG_LABELS) {
-        my ($tags, $label) = unpack('Qa*', $payload);
-        $decoded->{tags}   = $tags;
-        $decoded->{label}  = $label;
+        my ($tags, $tag_label) = unpack('QA*', $payload);
+        $decoded->{tags}       = $tags;
+        $decoded->{tag_label}  = $tag_label;
+        $decoded->{tag_label}  =~ s/\s+$//;
     }
     elsif ($type == LIGHT_STATUS) {
         my ($color,$dim,$power,$label,$tags) = _decode_light_status($payload);
@@ -137,6 +154,11 @@ sub new($$)
         my ($type,$scope,$mac,$data) = @_;
         if ($type == GET_PAN_GATEWAY) {
             $self->{packet} = _pack_message($type, $scope, $mac, "");
+        } elsif ($type == GET_TAGS) {
+            $self->{packet} = _pack_message($type, $scope, $mac, "");
+        } elsif ($type == GET_TAG_LABELS) {
+            my $payload = pack('Q',$data);
+            $self->{packet} = _pack_message($type, $scope, $mac, $payload);
         } elsif ($type == GET_WIFI_INFO) {
             $self->{packet} = _pack_message($type, $scope, $mac, "");
         } elsif ($type == SET_POWER_STATE) {
@@ -147,7 +169,13 @@ sub new($$)
             my $payload     = pack('(CSSSSL)<', @payload);
             $self->{packet} = _pack_message($type, $scope, $mac, $payload);
         } elsif ($type == GET_LIGHT_STATE) {
+            my ($tag, $tag_label) = @_;
             $self->{packet} = _pack_message($type, $scope, $mac, "");
+        } elsif ($type == SET_TAG_LABELS) {
+            my $payload = shift(@_);
+            $self->{packet} = _pack_message($type, $scope, $mac, $data);
+        } elsif ($type == SET_TAGS) {
+            $self->{packet} = _pack_message($type, $scope, $mac, $data);
         }
         if (defined($self->{packet})) {
             $self->{decoded} = _decode_packet($self->{packet});
@@ -168,9 +196,7 @@ sub as_hex_string($)
 
 sub type($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{header}->{packet_type};
+    return $_[0]->{decoded}->{header}->{packet_type};
 }
 
 sub type_as_string($)
@@ -179,62 +205,57 @@ sub type_as_string($)
 
     my $type = $self->{decoded}->{header}->{packet_type};
 
-    return Device::LIFX::Constants::type2str($type);
+    return type2str($type);
 }
 
 sub color($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{color};
+    return $_[0]->{decoded}->{color};
 }
 
 sub power($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{power};
+    return $_[0]->{decoded}->{power};
 }
 
 sub label($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{label};
+    return $_[0]->{decoded}->{label};
 }
 
 sub bulb_mac($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{header}->{target_mac_address};
+    return $_[0]->{decoded}->{header}->{target_mac_address};
 }
 
 sub signal($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{signal};
+    return $_[0]->{decoded}->{signal};
 }
+
 sub tx($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{tx};
+    return $_[0]->{decoded}->{tx};
 }
 
 sub rx($)
 {
-    my ($self) = @_;
+    return $_[0]->{decoded}->{rx};
+}
 
-    return $self->{decoded}->{rx};
+sub tags($)
+{
+    return $_[0]->{decoded}->{tags};
+}
+
+sub tag_label($)
+{
+    return $_[0]->{decoded}->{tag_label};
 }
 
 sub mcu_temperature($)
 {
-    my ($self) = @_;
-
-    return $self->{decoded}->{mcu_temperature};
+    return $_[0]->{decoded}->{mcu_temperature};
 }
 
 sub from_ip($)

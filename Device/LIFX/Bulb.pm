@@ -11,9 +11,10 @@ sub new($$)
 {
     my ($class,$hub,$mac) = @_;
 
-    my $self     = {};
-    $self->{hub} = $hub;
-    $self->{mac} = $mac;
+    my $self      = {};
+    $self->{hub}  = $hub;
+    $self->{mac}  = $mac;
+    $self->{tags} = 0;
 
     return bless $self, $class;
 }
@@ -119,12 +120,59 @@ sub _set_last_seen($$)
 
 sub last_seen($)
 {
+    return $_[0]->{last_seen};
+}
+
+sub _set_tags($$)
+{
+    my ($self,$tags) = @_;
+
+    $self->{tags} = $tags;
+}
+
+sub tag_mask($)
+{
+    return $_[0]->{tags};
+}
+
+sub _tag_ids()
+{
+    return $_[0]->{tags};
+}
+
+sub tags($)
+{
     my ($self) = @_;
 
-    return $self->{last_seen};
+    my @bulb_tags;
+    my @known_tags = $self->{hub}->_tag_ids();
+    for my $t (@known_tags) {
+        ($t & $self->{tags}) &&
+            push(@bulb_tags, $self->{hub}->_tag_label($t));
+    }
+    return @bulb_tags;
+}
+
+sub add_tag($$)
+{
+    my ($self,$tag) = @_;
+
+    $self->{hub}->add_tag_to_bulb($self,$tag);
+}
+
+sub remove_tag($$)
+{
+    my ($self,$tag) = @_;
+
+    $self->{hub}->remove_tag_from_bulb($self,$tag);
+}
+
+sub request_tags($)
+{
+    my ($self) = @_;
+
+    $self->{hub}->request_tags($self);
 }
 
 1;
-
-
 

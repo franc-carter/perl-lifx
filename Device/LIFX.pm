@@ -9,6 +9,9 @@ use List::Util;
 use Device::LIFX::Constants qw(/.*/);
 use Device::LIFX::Bulb;
 use Device::LIFX::Message;
+use Carp qw(confess);
+
+no warnings 'portable';
 
 my $port = 56700;
 
@@ -16,17 +19,18 @@ sub new($)
 {
     my ($class) = @_;
 
-    my $self           = {};
-    $self->{bulbs}     = {};
-    $self->{gateways}  = {};
-    $self->{port}      = $port;
-    $self->{socket}    = IO::Socket::INET->new(
-                             Proto => 'udp',
-                             LocalPort => $port,
-                             Broadcast => 1,
-                         );
+    my $self            = {};
+    $self->{bulbs}      = {};
+    $self->{gateways}   = {};
+    $self->{tag_labels} = {};
+    $self->{port}       = $port;
+    $self->{socket}     = IO::Socket::INET->new(
+                              Proto => 'udp',
+                              LocalPort => $port,
+                              Broadcast => 1,
+                          );
 
-    defined($self->{socket}) || die "Could not create listen socket: $!\n";
+    defined($self->{socket}) || confess "Could not create listen socket: $!\n";
     autoflush {$self->{socket}} 1;
 
     my $obj = bless $self, $class;
@@ -36,17 +40,38 @@ sub new($)
     return $obj;
 }
 
-sub tellBulb($$$$$)
+sub socket($)
 {
-    my ($self, $gw, $mac, $type, $payload) = @_;
+    my ($self) = @_;
+
+    return $self->{socket};
+}
+
+sub wait_for_quiet($$)
+{
+    my ($self,$seconds) = @_;
+
+    while(defined($self->next_message($seconds))) {
+        # Do Nothing, but status will be updated
+    }
+}
+
+
+sub tellBulb($$$$)
+{
+    my ($self, $bulb, $type, $payload) = @_;
 
     my $msg = Device::LIFX::Message->new(
                   $type,
                   BULB_COMMAND,
-                  $mac,
+                  $bulb->mac(),
                   $payload,
               );
-    $self->{socket}->send($msg->{packet}, 0, $gw) || die "Uggh: $!";
+    for my $gw (keys %{$self->{gateways}}) {
+        my $gw_addr  = $self->{gateways}->{$gw}->{addr};
+        $self->{socket}->send($msg->{packet}, 0, $gw_addr) || confess "Uggh: $!";
+    }
+
 }
 
 sub tellAll($$$)
@@ -61,7 +86,7 @@ sub tellAll($$$)
               );
     my $to = sockaddr_in($self->{port}, INADDR_BROADCAST);
 
-    $self->{socket}->send($msg->{packet}, 0, $to) || die "Uggh: $!";
+    $self->{socket}->send($msg->{packet}, 0, $to) || confess "Uggh: $!";
 }
 
 sub has_message($$)
@@ -100,8 +125,16 @@ sub get_message($$)
         # This is probably not correct, it spams the whole
         # network instead of the gateway globe
         $self->tellAll(GET_LIGHT_STATE, "");
+        $self->tellAll(GET_TAGS, "");
     }
     elsif ($msg->type() == TIME_STATE) {
+    }
+    elsif ($msg->type() == TAG_LABELS) {
+        $self->{tag_labels}->{$msg->tags()} = $msg->tag_label();
+    }
+    elsif ($msg->type() == TAGS) {
+        $bulb->_set_tags($msg->tags());
+        $self->tellAll(GET_TAG_LABELS, $msg->tags());
     }
     elsif ($msg->type() == POWER_STATE) {
         $bulb->_set_power($msg->power());
@@ -152,7 +185,7 @@ sub get_all_bulbs($)
     my @bulbs;
     my $byMAC = $self->{bulbs}->{byMAC};
     foreach my $mac (keys %{$byMAC}) {
-        push(@bulbs, Device::LIFX::Bulb->new($self,$byMAC->{$mac}));
+        push(@bulbs, $byMAC->{$mac});
     }
     return @bulbs;
 }
@@ -168,12 +201,15 @@ sub request_wifi_info($$)
 {
     my ($self,$bulb) = @_;
 
-    my $mac = $bulb->mac();
+    $self->tellBulb($bulb, GET_WIFI_INFO, "");
+}
 
-    for my $gw (keys %{$self->{gateways}}) {
-        my $gw_addr = $self->{gateways}->{$gw}->{addr};
-        $self->tellBulb($gw_addr, $mac, GET_WIFI_INFO, "");
-    }
+sub request_tags($$)
+{
+    my ($self,$bulb) = @_;
+
+    $self->tellBulb($bulb, GET_TAGS, "");
+    $self->tellBulb($bulb, GET_TAG_LABELS, "");
 }
 
 sub set_color($$$$)
@@ -184,13 +220,8 @@ sub set_color($$$$)
     $hsbk->[1]  = int($hsbk->[1] / 100.0 * 65535.0);
     $hsbk->[2]  = int($hsbk->[2] / 100.0 * 65535.0);
     my @payload = (0x0,$hsbk->[0],$hsbk->[1],$hsbk->[2],$hsbk->[3],$t);
-    my $mac     = $bulb->mac();
 
-    for my $gw (keys %{$self->{gateways}}) {
-        my $gw_addr = $self->{gateways}->{$gw}->{addr};
-        my @payload = (0,@{$hsbk}, $t);
-        $self->tellBulb($gw_addr, $mac, SET_LIGHT_COLOR, \@payload);
-    }
+    $self->tellBulb($bulb, SET_LIGHT_COLOR, \@payload);
 }
 
 sub set_rgb($$$$)
@@ -235,18 +266,109 @@ sub set_power($$$)
 {
     my ($self, $bulb, $power) = @_;
 
-    my $mac = $bulb->mac();
-    for my $gw (keys %{$self->{gateways}}) {
-        my $gw_addr = $self->{gateways}->{$gw}->{addr};
-        $self->tellBulb($gw_addr, $mac, SET_POWER_STATE, $power);
-    }
+    $self->tellBulb($bulb, SET_POWER_STATE, $power);
 }
 
-sub socket($)
+sub _tag_label($$)
+{
+    my ($self,$tag) = @_;
+
+    my $tag_label = $self->{tag_labels}->{$tag} || "UKNOWN_TAG";
+
+    return $tag_label;
+}
+
+sub _tag_ids($)
+{
+    return keys(%{$_[0]->{tag_labels}});
+}
+
+sub _find_tag_id($$)
+{
+    my ($self,$tag_label) = @_;
+
+    my $tag_id        = undef;
+    my @existing_tags = keys(%{$self->{tag_labels}});
+    for my $t (@existing_tags) {
+        if ($self->{tag_labels}->{$t} eq $tag_label) {
+            $tag_id = $t;
+            last;
+        }
+    }
+    return $tag_id;
+}
+
+sub _next_tag_id($)
 {
     my ($self) = @_;
 
-    return $self->{socket};
+    my $new_tag = undef;
+    my @existing_tags = keys(%{$self->{tag_labels}});
+    my $existing_tags = List::Util::sum(0,@existing_tags);
+    my $bits          = 1;
+    for(my $n=1; $n<64; $n++) {
+        if (!($existing_tags & $bits)) {
+            $new_tag = 1 << $n-1;
+            last;
+        }
+        $bits = $bits << 1;
+    }
+    return $new_tag;
+}
+
+sub get_bulbs_by_tag()
+{
+    my ($self,$tag_label) = @_;
+
+    my @bulbs;
+    my $tag = $self->_find_tag_id($tag_label);
+    foreach my $b ($self->get_all_bulbs()) {
+        my @tags = $b->tags();
+        if (grep(/^$tag_label$/, @tags)) {
+            push(@bulbs, $b);
+        }
+    }
+    return @bulbs;
+}
+
+sub remove_tag_from_bulb($$$)
+{
+    my ($self,$bulb,$tag_label) = @_;
+
+    my $id = $self->_find_tag_id($tag_label);
+    if (!defined($id)) {
+        print "Unknown tag: $tag_label\n";
+        return undef;
+    }
+    my $tag_ids = $bulb->_tag_ids();
+    $tag_ids   &= ($id ^ (0xFFFFFFFFFFFFFFFF));
+    
+    my $tag_data = pack('Q', $tag_ids);
+    $self->tellBulb($bulb, SET_TAGS, $tag_data);
+    $self->tellAll(GET_TAGS, "");
+}
+
+sub add_tag_to_bulb($$$)
+{
+    my ($self,$bulb,$tag_label) = @_;
+
+    my $new_tag = $self->_find_tag_id($tag_label) || $self->_next_tag_id();
+    if (!defined($new_tag)) {
+        print STDERR "Could not find a value to use for a new tag\n";
+        return undef;
+    }
+    my $tag_data = pack('QA32', ($new_tag, $tag_label));
+    $self->tellAll(SET_TAG_LABELS, $tag_data);
+
+    $new_tag |= $bulb->tag_mask();
+    $tag_data = pack('Q', $new_tag);
+    $self->tellBulb($bulb, SET_TAGS, $tag_data);
+    $self->tellAll(GET_TAGS, "");
+}
+
+sub all_tags($)
+{
+    return values(%{$_[0]->{tag_labels}});
 }
 
 1;
