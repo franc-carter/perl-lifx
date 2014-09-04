@@ -52,7 +52,7 @@ sub _decode_light_status($)
 {
     my ($payload) = @_;
 
-    my @decoded = unpack('(SSSSS)<SA32Q',$payload);
+    my @decoded = unpack('(SSSSS)<SA32a8',$payload);
     my $color   = [
         $decoded[0],
         $decoded[1]/65535.0*100.0,
@@ -96,11 +96,11 @@ sub _decode_packet($)
         $decoded->{power} = unpack('S', $payload);
     }
     elsif ($type == TAGS) {
-        my ($tags)       = unpack('Q', $payload);
+        my ($tags)       = unpack('a8', $payload);
         $decoded->{tags} = $tags;
     }
     elsif ($type == TAG_LABELS) {
-        my ($tags, $tag_label) = unpack('QA*', $payload);
+        my ($tags, $tag_label) = unpack('a8A*', $payload);
         $decoded->{tags}       = $tags;
         $decoded->{tag_label}  = $tag_label;
         $decoded->{tag_label}  =~ s/\s+$//;
@@ -157,7 +157,7 @@ sub new($$)
         } elsif ($type == GET_TAGS) {
             $self->{packet} = _pack_message($type, $scope, $mac, "");
         } elsif ($type == GET_TAG_LABELS) {
-            my $payload = pack('Q',$data);
+            my $payload = pack('a8',$data);
             $self->{packet} = _pack_message($type, $scope, $mac, $payload);
         } elsif ($type == GET_WIFI_INFO) {
             $self->{packet} = _pack_message($type, $scope, $mac, "");

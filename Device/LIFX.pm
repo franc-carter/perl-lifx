@@ -9,9 +9,8 @@ use List::Util;
 use Device::LIFX::Constants qw(/.*/);
 use Device::LIFX::Bulb;
 use Device::LIFX::Message;
+use bigint;
 use Carp qw(confess);
-
-no warnings 'portable';
 
 my $port = 56700;
 
@@ -343,7 +342,7 @@ sub remove_tag_from_bulb($$$)
     my $tag_ids = $bulb->_tag_ids();
     $tag_ids   &= ($id ^ (0xFFFFFFFFFFFFFFFF));
     
-    my $tag_data = pack('Q', $tag_ids);
+    my $tag_data = pack('a8', $tag_ids);
     $self->tellBulb($bulb, SET_TAGS, $tag_data);
     $self->tellAll(GET_TAGS, "");
 }
@@ -357,11 +356,11 @@ sub add_tag_to_bulb($$$)
         print STDERR "Could not find a value to use for a new tag\n";
         return undef;
     }
-    my $tag_data = pack('QA32', ($new_tag, $tag_label));
+    my $tag_data = pack('a8A32', ($new_tag, $tag_label));
     $self->tellAll(SET_TAG_LABELS, $tag_data);
 
     $new_tag |= $bulb->tag_mask();
-    $tag_data = pack('Q', $new_tag);
+    $tag_data = pack('a8', $new_tag);
     $self->tellBulb($bulb, SET_TAGS, $tag_data);
     $self->tellAll(GET_TAGS, "");
 }
