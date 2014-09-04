@@ -30,7 +30,7 @@ sub _decode_header($)
 {
     my ($packet) = @_;
 
-    my @header = unpack('(SS)<La6Sa6SQSS', $packet);
+    my @header = unpack('(SS)<La6Sa6Sa8SS', $packet);
     my $header = {
         size               => $header[0],
         protocol           => $header[1],
@@ -83,7 +83,7 @@ sub _decode_packet($)
         $decoded->{port}    = $port;
     }
     elsif ($type == TIME_STATE) {
-        $decoded->{time} = unpack('Q', $payload);
+        $decoded->{time} = unpack('a8', $payload);
     }
     elsif ($type == WIFI_INFO) {
         my @payload = unpack('(fLLs)<', $payload);
@@ -128,11 +128,11 @@ sub _pack_message($$$$)
         0x0,
         "LIFXV2",
         0x0,
-        0x0,
+        "\0\0\0\0\0\0\0\0",
         $type,
         0x0,
     );
-    my $packed = pack('(SS)<La6Sa6SQvS', @header);
+    my $packed = pack('(SS)<La6Sa6Sa8vS', @header);
 
     return $packed.$payload;
 }
