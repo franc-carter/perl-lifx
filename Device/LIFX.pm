@@ -216,8 +216,8 @@ sub set_color($$$$)
     my ($self, $bulb, $hsbk, $t) = @_;
 
     $t         *= 1000;
-    $hsbk->[1]  = int($hsbk->[1] / 100.0 * 65535.0);
-    $hsbk->[2]  = int($hsbk->[2] / 100.0 * 65535.0);
+    $hsbk->[1]  = int($hsbk->[1] * 65535 / 100 +0.5);
+    $hsbk->[2]  = int($hsbk->[2] * 65535 / 100 +0.5);
     my @payload = (0x0,$hsbk->[0],$hsbk->[1],$hsbk->[2],$hsbk->[3],$t);
 
     $self->tellBulb($bulb, SET_LIGHT_COLOR, \@payload);
@@ -244,19 +244,19 @@ sub set_rgb($$$$)
         $bc = ($max-$blue)/$range;
     }
     if ($red == $max) {
-        $hue = 0.166667*($bc-$gc);
+        $hue = ($bc-$gc)*166667/1000000;
     } elsif ($green == $max) {
-        $hue = 0.166667*(2.0+$rc-$bc);
+        $hue = (2+$rc-$bc)*166667/1000000;
     } else {
-        $hue = 0.166667*(4.0+$gc-$rc);
+        $hue = (4+$gc-$rc)*166667/1000000;
     }
 
-    if ($hue < 0.0) {
-       $hue += 1.0;
+    if ($hue < 0) {
+       $hue += 1;
     }
     $hue = int($hue * 65535);
     $sat = int($sat * 100);
-    $bri = int($max/255.0*100);
+    $bri = int($max*100/255);
 
     $self->set_color($bulb,[$hue,$sat,$bri,0],$t);
 }

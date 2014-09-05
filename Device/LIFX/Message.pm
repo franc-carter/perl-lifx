@@ -55,8 +55,8 @@ sub _decode_light_status($)
     my @decoded = unpack('(SSSSS)<SA32a8',$payload);
     my $color   = [
         $decoded[0],
-        $decoded[1]/65535.0*100.0,
-        $decoded[2]/65535.0*100.0,
+        int($decoded[1]*100/65535),
+        int($decoded[2]*100/65535),
         $decoded[3]
     ];
     my $dim   = $decoded[4];
