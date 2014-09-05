@@ -235,7 +235,7 @@ sub set_rgb($$$$)
     my $range = $max-$min;
 
     if ($max != 0) {
-        $sat = ($max-$min)/$max;
+        $sat = 100*($max-$min)/$max;
     }
     my ($rc,$gc,$bc);
     if ($sat != 0) {
@@ -244,19 +244,17 @@ sub set_rgb($$$$)
         $bc = ($max-$blue)/$range;
     }
     if ($red == $max) {
-        $hue = ($bc-$gc)*166667/1000000;
+        $hue = ($bc-$gc)*65535*166667/1000000;
     } elsif ($green == $max) {
-        $hue = (2+$rc-$bc)*166667/1000000;
+        $hue = (2+$rc-$bc)*65535*166667/1000000;
     } else {
-        $hue = (4+$gc-$rc)*166667/1000000;
+        $hue = (4+$gc-$rc)*65535*166667/1000000;
     }
 
     if ($hue < 0) {
        $hue += 1;
     }
-    $hue = int($hue * 65535);
-    $sat = int($sat * 100);
-    $bri = int($max*100/255);
+    $bri = $max * 100 / 255;
 
     $self->set_color($bulb,[$hue,$sat,$bri,0],$t);
 }
