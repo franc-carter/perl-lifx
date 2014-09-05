@@ -340,8 +340,8 @@ sub remove_tag_from_bulb($$$)
         return undef;
     }
     my $tag_ids = $bulb->_tag_ids();
-    $tag_ids   &= ($id ^ (0xFFFFFFFFFFFFFFFF));
-    
+    my $all_ones = chr(0xFF) x 8;
+    $tag_ids &= ($id ^ $all_ones);
     my $tag_data = pack('a8', $tag_ids);
     $self->tellBulb($bulb, SET_TAGS, $tag_data);
     $self->tellAll(GET_TAGS, "");
