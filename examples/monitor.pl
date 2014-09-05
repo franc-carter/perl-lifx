@@ -2,7 +2,7 @@
 
 use strict;
 use Device::LIFX;
-use Device::LIFX::Constants;
+use Device::LIFX::Constants qw(ALL_BULBS);
 use POSIX qw(strftime);
 use Data::Dumper;
 
@@ -18,7 +18,8 @@ while(1) {
         if (defined($bulb)) {
             print $bulb->label(),"\n";
             my $t = localtime($bulb->last_seen());
-            print " Last Seen: ",$t,"\n";
+        } elsif ($mac eq ALL_BULBS) {
+            print "All Bulbs\n";
         } else {
             print "No Bulb ?\n";
         }

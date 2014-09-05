@@ -123,6 +123,7 @@ sub type2str($)
 use constant ALL_BULBS_RESPONSE => 0x5400;
 use constant ALL_BULBS_REQUEST  => 0x3400;
 use constant BULB_COMMAND       => 0x1400;
+use constant ALL_BULBS          => "\0\0\0\0\0\0";
 
 sub protocol2str($)
 {
@@ -162,6 +163,8 @@ our %EXPORT_TAGS = (
         type2str protocol2str
     )],
 );
+
+our @EXPORT_OK = qw(ALL_BULBS);
 
 Exporter::export_ok_tags('get','set','responses','protocols','methods');
 
